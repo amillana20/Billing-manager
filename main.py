@@ -15,8 +15,8 @@ CATEGORIAS = [
     "Gastos Fijos", "Ropa", "Suministros", "Otros"
 ]
 
-# Se crea el cliente de Anthropic
-groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+# Se crea el cliente de Groq
+groq_client = None
 
 # Se define que debe hacer el servidor cuando se inicia y se detiene
 @asynccontextmanager
@@ -92,7 +92,8 @@ def eliminar_gasto(id: int):
 
 @app.post("/ia/categorizar", response_model=schemas.CategorizarResponse)
 def categorizar(request: schemas.CategorizarRequest):
-    mensaje = groq_client.chat.completions.create(
+    client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+    mensaje = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         max_tokens=20,
         messages=[{
