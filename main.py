@@ -4,20 +4,21 @@ from datetime import date
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from anthropic import Anthropic
 
 import db
 import schemas
 
 CATEGORIAS = [
-    "Alimentación", "Transporte", "Ocio", "Salud",
-    "Hogar", "Ropa", "Tecnología", "Restaurantes", "Otros"
+    "Supermercado", "Transporte", "Ocio", "Salud",
+    "Gastos Fijos", "Ropa", "Suministros", "Otros"
 ]
 
+# Se crea el cliente de Anthropic
 anthropic_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-
+# Se define que debe hacer el servidor cuando se inicia y se detiene
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.crear_tablas()
@@ -32,17 +33,26 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 def raiz():
-    return FileResponse("static/index.html")
+    return FileResponse(
+        "static/index.html",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
+    )
 
 
 # ── Gastos ─────────────────────────────────────────────────────────────────────
 
+# Se obtiene la lista de gastos
 @app.get("/gastos", response_model=list[schemas.GastoOut])
 def obtener_gastos(categoria: str | None = None, mes: str | None = None):
     filas = db.obtener_gastos(categoria=categoria, mes=mes)
     return [schemas.GastoOut.model_validate(dict(f)) for f in filas]
 
 
+# Se crea un gasto
 @app.post("/gastos", response_model=schemas.GastoOut, status_code=201)
 def crear_gasto(gasto: schemas.GastoCreate):
     id = db.añadir_gasto(
@@ -54,6 +64,7 @@ def crear_gasto(gasto: schemas.GastoCreate):
     return schemas.GastoOut.model_validate(dict(db.obtener_gasto(id)))
 
 
+# Se edita un gasto
 @app.put("/gastos/{id}", response_model=schemas.GastoOut)
 def editar_gasto(id: int, gasto: schemas.GastoUpdate):
     existe = db.obtener_gasto(id)
@@ -69,6 +80,7 @@ def editar_gasto(id: int, gasto: schemas.GastoUpdate):
     return schemas.GastoOut.model_validate(dict(db.obtener_gasto(id)))
 
 
+# Se elimina un gasto
 @app.delete("/gastos/{id}", status_code=204)
 def eliminar_gasto(id: int):
     eliminado = db.eliminar_gasto(id)
