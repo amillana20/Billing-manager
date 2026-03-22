@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <!--
+    viewport es crucial para móvil: sin esta línea el navegador
+    del móvil renderiza la página como si fuera escritorio y la encoge.
+    width=device-width usa el ancho real del móvil.
+    initial-scale=1 evita zoom automático.
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gastos IA</title>
+
+  <!-- Google Fonts: cargamos dos fuentes externas -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+
+  <style>
+    /* ── Variables CSS ────────────────────────────────────────────────
+       Las variables CSS (--nombre) permiten definir valores una vez
+       y reutilizarlos en todo el fichero. Si quieres cambiar el color
+       de acento solo tocas una línea.
+    ──────────────────────────────────────────────────────────────── */
+    :root {
+      --bg:        #0d0d0d;
+      --surface:   #161616;
+      --border:    #242424;
+      --text:      #e8e6e0;
+      --muted:     #666;
+      --accent:    #c8f135;   /* verde lima como color de acento */
+      --danger:    #ff5c5c;
+      --radius:    12px;
+      --font-main: 'Syne', sans-serif;
+      --font-mono: 'DM Mono', monospace;
+    }
+
+    /* ── Reset básico ─────────────────────────────────────────────────
+       Los navegadores tienen estilos por defecto distintos entre sí.
+       Este reset los elimina para partir de una base común.
+    ──────────────────────────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      /* padding-bottom deja espacio para la barra de navegación
+         inferior del móvil */
+      padding-bottom: 80px;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────────
+       position: sticky + top: 0 hace que el header se quede fijo
+       en la parte superior al hacer scroll.
+    ──────────────────────────────────────────────────────────────── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 20px 16px;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    /* El punto verde del logo */
+    .logo span {
+      color: var(--accent);
+    }
+
+    /* ── Píldoras de resumen ──────────────────────────────────────────
+       display: flex + overflow-x: auto permite que las píldoras
+       hagan scroll horizontal en móvil si no caben todas.
+    ──────────────────────────────────────────────────────────────── */
+    .stats {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      /* Oculta la barra de scroll horizontal en la mayoría de navegadores */
+      scrollbar-width: none;
+    }
+    .stats::-webkit-scrollbar { display: none; }
+
+    .stat {
+      flex-shrink: 0;   /* evita que las píldoras se encojan */
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      min-width: 110px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 400;
+    }
+
+    .stat-value.accent { color: var(--accent); }
+
+    /* ── Tabs ─────────────────────────────────────────────────────────
+       Las pestañas permiten navegar entre vistas sin recargar.
+    ──────────────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      background: var(--bg);
+    }
+
+    .tab {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--font-main);
+      font-size: 13px;
+      padding: 12px 16px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── Contenido principal ─────────────────────────────────────────
+       max-width + margin: auto centra el contenido en escritorio.
+       En móvil ocupa todo el ancho.
+    ──────────────────────────────────────────────────────────────── */
+    .content {
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* ── Vista (pestaña) ──────────────────────────────────────────────
+       Por defecto todas las vistas están ocultas.
+       La clase .active las muestra.
+    ──────────────────────────────────────────────────────────────── */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* ── Lista de gastos ─────────────────────────────────────────────*/
+    .expense-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .expense-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      /* transition anima cambios de estilo suavemente */
+      transition: border-color 0.15s;
+    }
+
+    .expense-item:hover { border-color: #333; }
+
+    .expense-icon {
+      font-size: 22px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+
+    .expense-body { flex: 1; min-width: 0; }
+
+    .expense-desc {
+      font-size: 14px;
+      /* Trunca el texto con ... si es demasiado largo */
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .expense-meta {
+      display: flex;
+      gap: 8px;
+      margin-top: 3px;
+    }
+
+    .expense-cat {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .expense-date {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #444;
+    }
+
+    .expense-amount {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .expense-actions {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .icon-btn {
+      background: none;
+      border: none;
+      color: #444;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      transition: color 0.15s;
+    }
+    .icon-btn:hover { color: var(--text); }
+    .icon-btn.del:hover { color: var(--danger); }
+
+    /* ── Estado vacío ────────────────────────────────────────────────*/
+    .empty {
+      text-align: center;
+      padding: 60px 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .empty-icon { font-size: 36px; margin-bottom: 12px; }
+
+    /* ── Gráfico de categorías ────────────────────────────────────────
+       Un gráfico de barras construido solo con HTML y CSS,
+       sin ninguna librería externa.
+    ──────────────────────────────────────────────────────────────── */
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 12px;
+    }
+
+    .chart-title {
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .bar-label {
+      font-size: 12px;
+      width: 110px;
+      flex-shrink: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bar-track {
+      flex: 1;
+      background: var(--bg);
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+    }
+
+    /* La anchura de .bar-fill se controla desde JavaScript
+       con elemento.style.width = "60%" */
+    .bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 4px;
+      /* transition anima el cambio de ancho suavemente */
+      transition: width 0.4s ease;
+    }
+
+    .bar-value {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      width: 70px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* ── Modal (formulario de añadir/editar) ─────────────────────────
+       position: fixed cubre toda la pantalla por encima del contenido.
+       El fondo semitransparente (overlay) oscurece lo de detrás.
+    ──────────────────────────────────────────────────────────────── */
+    .overlay {
+      display: none;        /* oculto por defecto */
+      position: fixed;
+      inset: 0;             /* equivale a top:0; right:0; bottom:0; left:0 */
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      /* flexbox para centrar el modal en escritorio
+         y pegarlo abajo en móvil */
+      align-items: flex-end;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+
+    /* Cuando el overlay tiene la clase .open se muestra */
+    .overlay.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      /* Solo esquinas superiores redondeadas: efecto "sube desde abajo" */
+      border-radius: 20px 20px 0 0;
+      padding: 24px 20px 40px;
+      width: 100%;
+      max-width: 500px;
+      animation: slideUp 0.25s ease;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+
+    /* ── Formulario ──────────────────────────────────────────────────*/
+    .form-group { margin-bottom: 14px; }
+
+    .form-label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .form-input, .form-select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--font-main);
+      font-size: 14px;
+      outline: none;
+      padding: 10px 14px;
+      transition: border-color 0.15s;
+    }
+
+    .form-input:focus, .form-select:focus {
+      border-color: var(--accent);
+    }
+
+    .form-select option { background: var(--surface); }
+
+    /* Dos columnas en el formulario para importe y fecha */
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    /* ── Botón de IA ──────────────────────────────────────────────────
+       Aparece debajo del campo descripción.
+    ──────────────────────────────────────────────────────────────── */
+    .ai-btn {
+      margin-top: 6px;
+      background: none;
+      border: 1px dashed var(--border);
+      border-radius: 7px;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-main);
+      font-size: 12px;
+      padding: 7px 12px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .ai-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .ai-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    /* Punto parpadeante que indica carga */
+    .dot {
+      width: 6px;
+      height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.2; }
+    }
+
+    /* ── Botones de acción del formulario ────────────────────────────*/
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .btn-primary {
+      flex: 1;
+      background: var(--accent);
+      border: none;
+      border-radius: 9px;
+      color: #0d0d0d;
+      cursor: pointer;
+      font-family: var(--font-main);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 12px;
+      transition: opacity 0.15s;
+    }
+
+    .btn-primary:hover { opacity: 0.85; }
+
+    .btn-secondary {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--font-main);
+      font-size: 14px;
+      padding: 12px 20px;
+      transition: background 0.15s;
+    }
+
+    .btn-secondary:hover { background: var(--border); }
+
+    /* ── Botón flotante de añadir ────────────────────────────────────
+       position: fixed lo ancla a la esquina inferior derecha
+       sin importar el scroll.
+    ──────────────────────────────────────────────────────────────── */
+    .fab {
+      position: fixed;
+      bottom: 24px;
+      right: 20px;
+      background: var(--accent);
+      border: none;
+      border-radius: 50%;
+      color: #0d0d0d;
+      cursor: pointer;
+      font-size: 24px;
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(200,241,53,0.3);
+      transition: transform 0.15s, box-shadow 0.15s;
+      z-index: 50;
+    }
+
+    .fab:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 24px rgba(200,241,53,0.4);
+    }
+
+    /* ── Responsive: escritorio ───────────────────────────────────────
+       @media aplica estilos solo cuando la pantalla es más ancha
+       que 600px (escritorio o tablet).
+    ──────────────────────────────────────────────────────────────── */
+    @media (min-width: 600px) {
+      .overlay { align-items: center; }
+      .modal   { border-radius: 20px; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────────────── -->
+  <header>
+    <div class="header-top">
+      <div class="logo">gastos<span>.</span>ia</div>
+    </div>
+    <!-- Las stats se rellenan desde JavaScript -->
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <!-- ── Tabs ────────────────────────────────────────────────────── -->
+  <nav class="tabs">
+    <!--
+      data-tab es un atributo personalizado (data attribute).
+      JavaScript lo lee para saber qué vista mostrar al pulsar.
+    -->
+    <button class="tab active" data-tab="lista">Lista</button>
+    <button class="tab"        data-tab="graficos">Gráficos</button>
+  </nav>
+
+  <!-- ── Contenido ───────────────────────────────────────────────── -->
+  <main class="content">
+
+    <!-- Vista Lista -->
+    <section class="view active" id="view-lista">
+      <div class="expense-list" id="expense-list">
+        <!-- Los gastos se insertan aquí desde JavaScript -->
+      </div>
+    </section>
+
+    <!-- Vista Gráficos -->
+    <section class="view" id="view-graficos">
+      <div class="chart-card">
+        <div class="chart-title">Gasto por categoría</div>
+        <div id="chart-bars">
+          <!-- Las barras se insertan aquí desde JavaScript -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Botón flotante ──────────────────────────────────────────── -->
+  <button class="fab" id="fab" title="Añadir gasto">+</button>
+
+  <!-- ── Modal con el formulario ─────────────────────────────────── -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <div class="modal-title" id="modal-title">Nuevo gasto</div>
+
+      <div class="form-group">
+        <label class="form-label">Descripción</label>
+        <input class="form-input" id="f-desc" type="text" placeholder="Ej: Mercadona, Spotify…">
+        <button class="ai-btn" id="ai-btn">✦ Categorizar con IA</button>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Importe (€)</label>
+          <input class="form-input" id="f-importe" type="number" min="0.01" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fecha</label>
+          <input class="form-input" id="f-fecha" type="date">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Categoría</label>
+        <select class="form-select" id="f-categoria">
+          <!-- Las opciones se generan desde JavaScript con la lista CATEGORIAS -->
+        </select>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn-secondary" id="btn-cancelar">Cancelar</button>
+        <button class="btn-primary"   id="btn-guardar">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Configuración ─────────────────────────────────────────────────
+    // La URL base de la API. En local es localhost.
+    // Cuando despliegues en Railway/Render cambiará a tu URL pública.
+    // El string vacío "" significa "la misma URL desde donde se sirve
+    // la página" — así funciona tanto en local como en producción
+    // sin cambiar nada.
+    const API = "";
+
+    const CATEGORIAS = [
+      "Supermercado", "Transporte", "Ocio", "Salud",
+      "Gastos Fijos", "Ropa", "Suministros", "Otros"
+    ];
+
+    // Emoji por categoría para los iconos
+    const ICONOS = {
+      "Supermercado": "🛒",
+      "Transporte":   "🚇",
+      "Ocio":         "🎮",
+      "Salud":        "🏥",
+      "Gastos Fijos": "📋",
+      "Ropa":         "👗",
+      "Suministros":  "⚡",
+      "Otros":        "📦",
+    };
+
+    // ── Estado de la app ──────────────────────────────────────────────
+    // Toda la información que necesita la app en memoria.
+    // gastos: la lista actual. editandoId: el id del gasto que
+    // se está editando (null si se está creando uno nuevo).
+    let gastos = [];
+    let editandoId = null;
+
+    // ── Referencias al DOM ────────────────────────────────────────────
+    // document.getElementById busca un elemento HTML por su id.
+    // Los guardamos en variables para no buscarlo cada vez.
+    const lista       = document.getElementById("expense-list");
+    const statsEl     = document.getElementById("stats");
+    const chartBars   = document.getElementById("chart-bars");
+    const overlay     = document.getElementById("overlay");
+    const modalTitle  = document.getElementById("modal-title");
+    const fDesc       = document.getElementById("f-desc");
+    const fImporte    = document.getElementById("f-importe");
+    const fFecha      = document.getElementById("f-fecha");
+    const fCategoria  = document.getElementById("f-categoria");
+    const aiBtn       = document.getElementById("ai-btn");
+
+    // ── Inicializar el select de categorías ───────────────────────────
+    // Generamos las opciones del desplegable desde el array CATEGORIAS.
+    // innerHTML permite escribir HTML como string y lo inserta en el elemento.
+    CATEGORIAS.forEach(cat => {
+      fCategoria.innerHTML += `<option value="${cat}">${cat}</option>`;
+    });
+
+    // Fecha de hoy en formato YYYY-MM-DD para el campo de fecha
+    const hoy = new Date().toISOString().split("T")[0];
+    fFecha.value = hoy;
+
+    // ── Formatear moneda ──────────────────────────────────────────────
+    // Intl.NumberFormat es la API nativa del navegador para formatear
+    // números según el idioma y moneda. "es-ES" formatea en español.
+    const fmt = n => new Intl.NumberFormat("es-ES", {
+      style: "currency", currency: "EUR"
+    }).format(n);
+
+    // ── Llamadas a la API ─────────────────────────────────────────────
+    // fetch() es la función nativa de JavaScript para hacer
+    // peticiones HTTP. Devuelve una Promise, por eso usamos
+    // async/await — permite escribir código asíncrono como si
+    // fuera síncrono, esperando el resultado antes de continuar.
+
+    async function cargarGastos() {
+      const res  = await fetch(`${API}/gastos`);
+      gastos = await res.json();   // .json() convierte la respuesta a objeto JS
+      renderLista();
+      renderStats();
+      renderGraficos();
+    }
+
+    async function crearGasto(datos) {
+      await fetch(`${API}/gastos`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" }, // indicamos que mandamos JSON
+        body:    JSON.stringify(datos),                   // convertimos el objeto a string JSON
+      });
+    }
+
+    async function editarGasto(id, datos) {
+      await fetch(`${API}/gastos/${id}`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(datos),
+      });
+    }
+
+    async function eliminarGasto(id) {
+      await fetch(`${API}/gastos/${id}`, { method: "DELETE" });
+    }
+
+    async function categorizarIA(descripcion) {
+      const res  = await fetch(`${API}/ia/categorizar`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ descripcion }),
+      });
+      const data = await res.json();
+      return data.categoria;
+    }
+
+    // ── Renderizar la lista ───────────────────────────────────────────
+    // "Renderizar" significa generar el HTML de la lista y
+    // insertarlo en el DOM (la estructura de la página).
+    function renderLista() {
+      if (gastos.length === 0) {
+        lista.innerHTML = `
+          <div class="empty">
+            <div class="empty-icon">🧾</div>
+            Sin gastos todavía. Pulsa + para añadir el primero.
+          </div>`;
+        return;
+      }
+
+      // map transforma cada gasto en un string de HTML.
+      // join("") une todos esos strings en uno solo.
+      lista.innerHTML = gastos.map(g => `
+        <div class="expense-item">
+          <div class="expense-icon">${ICONOS[g.categoria] || "📦"}</div>
+          <div class="expense-body">
+            <div class="expense-desc">${g.descripcion}</div>
+            <div class="expense-meta">
+              <span class="expense-cat">${g.categoria}</span>
+              <span class="expense-date">${g.fecha}</span>
+            </div>
+          </div>
+          <div class="expense-amount">${fmt(g.importe)}</div>
+          <div class="expense-actions">
+            <!--
+              onclick llama a una función al pulsar el botón.
+              Pasamos el id del gasto para saber cuál editar o borrar.
+            -->
+            <button class="icon-btn" onclick="abrirEditar(${g.id})">✏️</button>
+            <button class="icon-btn del" onclick="borrar(${g.id})">🗑️</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    // ── Renderizar las estadísticas del header ────────────────────────
+    function renderStats() {
+      const total = gastos.reduce((sum, g) => sum + g.importe, 0);
+
+      // Filtramos los gastos del mes actual comparando los primeros 7
+      // caracteres de la fecha ("2026-03") con el mes de hoy
+      const mesActual = hoy.slice(0, 7);
+      const totalMes  = gastos
+        .filter(g => g.fecha.startsWith(mesActual))
+        .reduce((sum, g) => sum + g.importe, 0);
+
+      statsEl.innerHTML = `
+        <div class="stat">
+          <div class="stat-label">Total</div>
+          <div class="stat-value accent">${fmt(total)}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Este mes</div>
+          <div class="stat-value">${fmt(totalMes)}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Gastos</div>
+          <div class="stat-value">${gastos.length}</div>
+        </div>
+      `;
+    }
+
+    // ── Renderizar el gráfico de barras ───────────────────────────────
+    function renderGraficos() {
+      // Calculamos el total por categoría agrupando los gastos
+      const totales = {};
+      gastos.forEach(g => {
+        totales[g.categoria] = (totales[g.categoria] || 0) + g.importe;
+      });
+
+      // Convertimos el objeto a un array y lo ordenamos de mayor a menor
+      const datos = Object.entries(totales)
+        .map(([cat, total]) => ({ cat, total }))
+        .sort((a, b) => b.total - a.total);
+
+      if (datos.length === 0) {
+        chartBars.innerHTML = `<div class="empty" style="padding:30px 0">Sin datos todavía</div>`;
+        return;
+      }
+
+      // El máximo nos sirve para calcular el porcentaje de cada barra
+      const maximo = datos[0].total;
+
+      chartBars.innerHTML = datos.map(({ cat, total }) => {
+        const pct = (total / maximo * 100).toFixed(1);
+        return `
+          <div class="bar-row">
+            <div class="bar-label">${ICONOS[cat] || "📦"} ${cat}</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: ${pct}%"></div>
+            </div>
+            <div class="bar-value">${fmt(total)}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // ── Abrir y cerrar el modal ───────────────────────────────────────
+    function abrirNuevo() {
+      editandoId    = null;
+      modalTitle.textContent = "Nuevo gasto";
+      fDesc.value   = "";
+      fImporte.value = "";
+      fFecha.value  = hoy;
+      fCategoria.value = "Supermercado";
+      overlay.classList.add("open");  // añadir la clase .open lo hace visible
+      fDesc.focus();
+    }
+
+    function abrirEditar(id) {
+      const g = gastos.find(g => g.id === id);  // busca el gasto por id
+      if (!g) return;
+      editandoId = id;
+      modalTitle.textContent = "Editar gasto";
+      fDesc.value      = g.descripcion;
+      fImporte.value   = g.importe;
+      fFecha.value     = g.fecha;
+      fCategoria.value = g.categoria;
+      overlay.classList.add("open");
+    }
+
+    function cerrarModal() {
+      overlay.classList.remove("open");
+    }
+
+    // ── Guardar (crear o editar) ──────────────────────────────────────
+    async function guardar() {
+      const datos = {
+        descripcion: fDesc.value.trim(),
+        importe:     parseFloat(fImporte.value),
+        categoria:   fCategoria.value,
+        fecha:       fFecha.value,
+      };
+
+      // Validación mínima en el cliente antes de llamar a la API
+      if (!datos.descripcion || isNaN(datos.importe) || datos.importe <= 0) {
+        alert("Rellena todos los campos correctamente.");
+        return;
+      }
+
+      if (editandoId) {
+        await editarGasto(editandoId, datos);
+      } else {
+        await crearGasto(datos);
+      }
+
+      cerrarModal();
+      await cargarGastos();  // recargamos para reflejar los cambios
+    }
+
+    async function borrar(id) {
+      // confirm muestra un diálogo de confirmación nativo del navegador
+      if (!confirm("¿Eliminar este gasto?")) return;
+      await eliminarGasto(id);
+      await cargarGastos();
+    }
+
+    // ── Botón de IA ───────────────────────────────────────────────────
+    aiBtn.addEventListener("click", async () => {
+      const desc = fDesc.value.trim();
+      if (!desc) return;
+
+      // Cambiamos el botón a estado de carga mientras espera la respuesta
+      aiBtn.disabled   = true;
+      aiBtn.innerHTML  = `<div class="dot"></div> Categorizando…`;
+
+      const cat = await categorizarIA(desc);
+      fCategoria.value = cat;
+
+      aiBtn.disabled  = false;
+      aiBtn.innerHTML = "✦ Categorizar con IA";
+    });
+
+    // ── Navegación entre pestañas ─────────────────────────────────────
+    // querySelectorAll devuelve todos los elementos que coinciden
+    // con el selector CSS ".tab".
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        const vista = tab.dataset.tab;  // lee el atributo data-tab
+
+        // Desactiva todas las tabs y vistas
+        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+        document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+
+        // Activa la tab pulsada y su vista correspondiente
+        tab.classList.add("active");
+        document.getElementById(`view-${vista}`).classList.add("active");
+      });
+    });
+
+    // ── Event listeners ───────────────────────────────────────────────
+    // addEventListener escucha eventos (clicks, teclado, etc.)
+    // y llama a una función cuando ocurren.
+    document.getElementById("fab").addEventListener("click", abrirNuevo);
+    document.getElementById("btn-cancelar").addEventListener("click", cerrarModal);
+    document.getElementById("btn-guardar").addEventListener("click", guardar);
+
+    // Cerrar el modal al pulsar fuera (en el overlay oscuro)
+    overlay.addEventListener("click", e => {
+      if (e.target === overlay) cerrarModal();
+    });
+
+    // ── Arranque ──────────────────────────────────────────────────────
+    // Cargamos los gastos al abrir la página por primera vez.
+    cargarGastos();
+  </script>
+
+</body>
+</html>
