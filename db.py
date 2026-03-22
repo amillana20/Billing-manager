@@ -1,9 +1,15 @@
 import sqlite3
 import pathlib
 from datetime import date
+import os
 
 # Ruta de la base de datos
-DB_PATH = pathlib.Path.home() / ".gastos_ia.db"
+# Si existe el directorio /data, se usa la base de datos en ese directorio (Railway)
+# Si no existe, se usa la base de datos en el directorio del usuario
+if os.path.exists("/data"):
+    DB_PATH = pathlib.Path("/data") / "gastos_ia.db"
+else:
+    DB_PATH = pathlib.Path.home() / ".gastos_ia.db"
 
 def _get_conn() -> sqlite3.Connection:
     # Conectar a la base de datos
@@ -125,27 +131,29 @@ def totales_por_categoria(mes: str | None = None) -> list[dict]:
         return [{"categoria": r["categoria"], "total": r["total"]} for r in rows]
 
 
+# Comprobación del funcionamiento de la base de datos
 
-if __name__ == "__main__":
-    crear_tablas()
 
-    id1 = añadir_gasto("Mercadona", 67.50, "Alimentación")
-    id2 = añadir_gasto("Netflix", 17.99, "Ocio")
-    id3 = añadir_gasto("Renfe Madrid-Valencia", 42.00, "Transporte")
+# if __name__ == "__main__":
+#     crear_tablas()
 
-    print("Todos los gastos:")
-    for g in obtener_gastos():
-        print(f"  {g['id']} | {g['descripcion']} | {g['importe']}€ | {g['categoria']}")
+#     id1 = añadir_gasto("Mercadona", 67.50, "Alimentación")
+#     id2 = añadir_gasto("Netflix", 17.99, "Ocio")
+#     id3 = añadir_gasto("Renfe Madrid-Valencia", 42.00, "Transporte")
 
-    print("\nSolo Ocio:")
-    for g in obtener_gastos(categoria="Ocio"):
-        print(f"  {g['descripcion']} | {g['importe']}€")
+#     print("Todos los gastos:")
+#     for g in obtener_gastos():
+#         print(f"  {g['id']} | {g['descripcion']} | {g['importe']}€ | {g['categoria']}")
 
-    from datetime import date
-    editar_gasto(id1, "Mercadona (editado)", 70.00, "Alimentación", date.today())
-    print(f"\nGasto editado: {dict(obtener_gasto(id1))}")
+#     print("\nSolo Ocio:")
+#     for g in obtener_gastos(categoria="Ocio"):
+#         print(f"  {g['descripcion']} | {g['importe']}€")
 
-    print("\nTotales por categoría:", totales_por_categoria())
+#     from datetime import date
+#     editar_gasto(id1, "Mercadona (editado)", 70.00, "Alimentación", date.today())
+#     print(f"\nGasto editado: {dict(obtener_gasto(id1))}")
 
-    eliminar_gasto(id3)
-    print(f"\nGastos tras eliminar: {len(obtener_gastos())}")
+#     print("\nTotales por categoría:", totales_por_categoria())
+
+#     eliminar_gasto(id3)
+#     print(f"\nGastos tras eliminar: {len(obtener_gastos())}")
