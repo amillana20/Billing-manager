@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
-from anthropic import Anthropic
+from groq import Groq
 
 import db
 import schemas
@@ -16,7 +16,7 @@ CATEGORIAS = [
 ]
 
 # Se crea el cliente de Anthropic
-anthropic_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 # Se define que debe hacer el servidor cuando se inicia y se detiene
 @asynccontextmanager
@@ -92,8 +92,8 @@ def eliminar_gasto(id: int):
 
 @app.post("/ia/categorizar", response_model=schemas.CategorizarResponse)
 def categorizar(request: schemas.CategorizarRequest):
-    mensaje = anthropic_client.messages.create(
-        model="claude-opus-4-5",
+    mensaje = groq_client.chat.completions.create(
+        model="llama-3.1-8b-instant",
         max_tokens=20,
         messages=[{
             "role": "user",
@@ -104,7 +104,7 @@ def categorizar(request: schemas.CategorizarRequest):
             )
         }]
     )
-    categoria = mensaje.content[0].text.strip()
+    categoria = mensaje.choices[0].message.content.strip()
     if categoria not in CATEGORIAS:
         categoria = "Otros"
     return schemas.CategorizarResponse(categoria=categoria)
