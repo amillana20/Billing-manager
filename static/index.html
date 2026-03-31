@@ -787,6 +787,14 @@
       style: "currency", currency: "EUR"
     }).format(n);
 
+    const fmt_mes = mes => {
+          const [anyo, num] = mes.split("-");
+          const nombres = [
+              "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+          ];
+          return `${nombres[parseInt(num) - 1]} ${anyo}`;
+      };
     // ── Llamadas a la API ─────────────────────────────────────────────
     // fetch() es la función nativa de JavaScript para hacer
     // peticiones HTTP. Devuelve una Promise, por eso usamos
@@ -862,17 +870,7 @@
       // 2. Ordenamos los meses de más reciente a más antiguo
       const meses = Object.keys(grupos).sort().reverse();
 
-      // 3. Formateamos el mes para mostrarlo como "Marzo 2026"
-      const fmt_mes = mes => {
-          const [anyo, num] = mes.split("-");
-          const nombres = [
-              "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-          ];
-          return `${nombres[parseInt(num) - 1]} ${anyo}`;
-      };
-
-      // 4. Generamos el HTML de cada grupo
+      // 3. Generamos el HTML de cada grupo
 
       lista.innerHTML = meses.map(mes => {
       const gastosDelMes = grupos[mes];
