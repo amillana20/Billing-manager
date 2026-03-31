@@ -638,6 +638,27 @@
         color: var(--accent);
     }
 
+    .chart-controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+
+    .mes-select {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        font-family: var(--font-main);
+        font-size: 13px;
+        padding: 7px 12px;
+        outline: none;
+        cursor: pointer;
+        transition: border-color 0.15s;
+    }
+
+    .mes-select:focus { border-color: var(--accent); }
   </style>
 </head>
 
@@ -673,12 +694,19 @@
 
     <!-- Vista Gráficos -->
     <section class="view" id="view-graficos">
-      <div class="chart-card">
-        <div class="chart-title">Gasto por categoría</div>
-        <div id="chart-bars">
-          <!-- Las barras se insertan aquí desde JavaScript -->
+        <div class="chart-card">
+            <div class="chart-controls">
+                <div class="chart-title">Gasto por categoría</div>
+                <!--
+                    onchange llama a renderGraficos() cada vez que
+                    el usuario selecciona un mes diferente.
+                    Las opciones se generan desde JavaScript.
+                -->
+                <select class="mes-select" id="mes-select" onchange="renderGraficos()">
+                </select>
+            </div>
+            <div id="chart-bars"></div>
         </div>
-      </div>
     </section>
 
   </main>
@@ -943,38 +971,64 @@
 
     // ── Renderizar el gráfico de barras ───────────────────────────────
     function renderGraficos() {
-      // Calculamos el total por categoría agrupando los gastos
-      const totales = {};
-      gastos.forEach(g => {
-        totales[g.categoria] = (totales[g.categoria] || 0) + g.importe;
-      });
+        const select = document.getElementById("mes-select");
 
-      // Convertimos el objeto a un array y lo ordenamos de mayor a menor
-      const datos = Object.entries(totales)
-        .map(([cat, total]) => ({ cat, total }))
-        .sort((a, b) => b.total - a.total);
+        // Calculamos qué meses hay en los gastos para rellenar el selector
+        const mesesDisponibles = [...new Set(gastos.map(g => g.fecha.slice(0, 7)))]
+            .sort()
+            .reverse();
 
-      if (datos.length === 0) {
-        chartBars.innerHTML = `<div class="empty" style="padding:30px 0">Sin datos todavía</div>`;
-        return;
-      }
+        // Rellenamos el selector solo si los meses han cambiado
+        // para no resetear la selección del usuario en cada render
+        const opcionesActuales = [...select.options].map(o => o.value);
+        const mismaOpciones = JSON.stringify(opcionesActuales) === JSON.stringify(mesesDisponibles);
 
-      // El máximo nos sirve para calcular el porcentaje de cada barra
-      const maximo = datos[0].total;
+        if (!mismaOpciones) {
+            select.innerHTML = mesesDisponibles.map(mes =>
+                `<option value="${mes}">${fmt_mes(mes)}</option>`
+            ).join("");
+        }
 
-      chartBars.innerHTML = datos.map(({ cat, total }) => {
-        const pct = (total / maximo * 100).toFixed(1);
-        return `
-          <div class="bar-row">
-            <div class="bar-label">${ICONOS[cat] || "📦"} ${cat}</div>
-            <div class="bar-track">
-              <div class="bar-fill" style="width: ${pct}%"></div>
-            </div>
-            <div class="bar-value">${fmt(total)}</div>
-          </div>
-        `;
-      }).join("");
-    }
+        // El mes seleccionado actualmente en el desplegable
+        const mesSeleccionado = select.value;
+
+        // Filtramos los gastos por ese mes
+        const gastosFiltrados = gastos.filter(g =>
+            g.fecha.startsWith(mesSeleccionado)
+        );
+
+        // Agrupamos por categoría y calculamos totales
+        const totales = {};
+        gastosFiltrados.forEach(g => {
+            totales[g.categoria] = (totales[g.categoria] || 0) + g.importe;
+        });
+
+        const datos = Object.entries(totales)
+            .map(([cat, total]) => ({ cat, total }))
+            .sort((a, b) => b.total - a.total);
+
+        const chartBars = document.getElementById("chart-bars");
+
+        if (datos.length === 0) {
+            chartBars.innerHTML = `<div class="empty" style="padding:30px 0">Sin gastos en este mes</div>`;
+            return;
+        }
+
+        const maximo = datos[0].total;
+
+        chartBars.innerHTML = datos.map(({ cat, total }) => {
+            const pct = (total / maximo * 100).toFixed(1);
+            return `
+                <div class="bar-row">
+                    <div class="bar-label">${ICONOS[cat] || "📦"} ${cat}</div>
+                    <div class="bar-track">
+                        <div class="bar-fill" style="width: ${pct}%"></div>
+                    </div>
+                    <div class="bar-value">${fmt(total)}</div>
+                </div>
+            `;
+        }).join("");
+}
 
     // ── Abrir y cerrar el modal ───────────────────────────────────────
     function abrirNuevo() {
