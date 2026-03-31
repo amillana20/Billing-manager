@@ -26,6 +26,24 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# Primero las rutas específicas
+@app.get("/static/sw.js")
+def service_worker():
+    return FileResponse(
+        "static/sw.js",
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/"}
+    )
+
+@app.get("/static/manifest.json")
+def manifest():
+    return FileResponse(
+        "static/manifest.json",
+        media_type="application/manifest+json"
+    )
+
+# Después el mount general
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -131,19 +149,7 @@ def guardar_presupuesto(mes: str, datos: schemas.PresupuestoIn):
         restante=round(importe - gastado, 2)
     )
 
-@app.get("/static/manifest.json")
-def manifest():
-    return FileResponse("static/manifest.json")
 
-@app.get("/static/sw.js")
-def service_worker():
-    return FileResponse(
-        "static/sw.js",
-        media_type="application/javascript",
-        headers={
-            "Service-Worker-Allowed": "/"
-        }
-    )
 # ── IA ─────────────────────────────────────────────────────────────────────────
 
 @app.post("/ia/categorizar", response_model=schemas.CategorizarResponse)
