@@ -1,21 +1,30 @@
-{
-    "name": "Expenses Manager",
-    "short_name": "Expenses",
-    "description": "Gestión de gastos personal con IA",
-    "start_url": "/",
-    "display": "standalone",
-    "background_color": "#0d0d0d",
-    "theme_color": "#0d0d0d",
-    "icons": [
-        {
-            "src": "/static/icon-192.png",
-            "sizes": "192x192",
-            "type": "image/png"
-        },
-        {
-            "src": "/static/icon-512.png",
-            "sizes": "512x512",
-            "type": "image/png"
-        }
-    ]
-}
+const CACHE = "expenses-v1";
+
+const ARCHIVOS = [
+    "/",
+    "/static/manifest.json"
+];
+
+self.addEventListener("install", function(e) {
+    e.waitUntil(
+        caches.open(CACHE).then(function(cache) {
+            return cache.addAll(ARCHIVOS);
+        })
+    );
+});
+
+self.addEventListener("fetch", function(e) {
+    e.respondWith(
+        fetch(e.request)
+            .then(function(res) {
+                var copia = res.clone();
+                caches.open(CACHE).then(function(cache) {
+                    cache.put(e.request, copia);
+                });
+                return res;
+            })
+            .catch(function() {
+                return caches.match(e.request);
+            })
+    );
+});
