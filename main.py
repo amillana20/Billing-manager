@@ -130,7 +130,11 @@ def guardar_presupuesto(mes: str, datos: schemas.PresupuestoIn):
         gastado=round(gastado, 2),
         restante=round(importe - gastado, 2)
     )
-    
+
+@app.get("/static/manifest.json")
+def manifest():
+    return FileResponse("static/manifest.json")
+       
 # ── IA ─────────────────────────────────────────────────────────────────────────
 
 @app.post("/ia/categorizar", response_model=schemas.CategorizarResponse)

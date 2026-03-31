@@ -15,6 +15,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
 
+    <!-- Vincula el manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+
+    <!-- Color de la barra de estado en móvil -->
+    <meta name="theme-color" content="#0d0d0d">
+
+    <!-- Para iOS, que no soporta manifest directamente -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Expenses">
+    
   <style>
     /* ── Variables CSS ────────────────────────────────────────────────
        Las variables CSS (--nombre) permiten definir valores una vez
@@ -53,6 +64,7 @@
          inferior del móvil */
       padding-bottom: 80px;
     }
+
 
     /* ── Header ───────────────────────────────────────────────────────
        position: sticky + top: 0 hace que el header se quede fijo
@@ -1224,6 +1236,14 @@
     // ── Arranque ──────────────────────────────────────────────────────
     // Cargamos los gastos al abrir la página por primera vez.
     cargarGastos();
+
+// Registra el service worker si el navegador lo soporta
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/static/sw.js")
+            .then(() => console.log("Service Worker registrado"))
+            .catch(err => console.log("Error SW:", err));
+    }
+
   </script>
 
 </body>
