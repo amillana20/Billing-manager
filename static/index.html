@@ -544,6 +544,38 @@
         font-size: 13px;
         color: var(--accent);
     }
+
+    .mes-grupo {}
+
+    .mes-header {
+        cursor: pointer;  /* el cursor cambia a mano al pasar por encima */
+        user-select: none; /* evita que se seleccione el texto al hacer clic */
+    }
+
+    .mes-toggle {
+        font-size: 11px;
+        color: var(--muted);
+        transition: transform 0.2s ease;
+        display: inline-block;
+    }
+
+    /* Cuando el grupo está colapsado, la flecha rota */
+    .mes-grupo.colapsado .mes-toggle {
+        transform: rotate(-90deg);
+    }
+
+    .mes-items {
+        overflow: hidden;
+        /* max-height grande para la animación de abrir */
+        max-height: 2000px;
+        transition: max-height 0.3s ease;
+    }
+
+    /* Cuando está colapsado, los items desaparecen con animación */
+    .mes-grupo.colapsado .mes-items {
+        max-height: 0;
+    }
+
   </style>
 </head>
 
@@ -774,67 +806,48 @@
       };
 
       // 4. Generamos el HTML de cada grupo
+
       lista.innerHTML = meses.map(mes => {
-          const gastosDelMes = grupos[mes];
+      const gastosDelMes = grupos[mes];
+      const totalMes = gastosDelMes.reduce((sum, g) => sum + g.importe, 0);
 
-          // Total del mes sumando todos los importes
-          const totalMes = gastosDelMes.reduce((sum, g) => sum + g.importe, 0);
-
-          // HTML de la cabecera del mes
-          const cabecera = `
-              <div class="mes-header">
-                  <span class="mes-nombre">${fmt_mes(mes)}</span>
-                  <span class="mes-total">${fmt(totalMes)}</span>
-              </div>
-          `;
-
-          // HTML de los gastos del mes
-          const items = gastosDelMes.map(g => `
-              <div class="expense-item">
-                  <div class="expense-icon">${ICONOS[g.categoria] || "📦"}</div>
-                  <div class="expense-body">
-                      <div class="expense-desc">${g.descripcion}</div>
-                      <div class="expense-meta">
-                          <span class="expense-cat">${g.categoria}</span>
-                          <span class="expense-date">${g.fecha}</span>
-                      </div>
-                  </div>
-                  <div class="expense-amount">${fmt(g.importe)}</div>
-                  <div class="expense-actions">
-                      <button class="icon-btn" onclick="abrirEditar(${g.id})">✏️</button>
-                      <button class="icon-btn del" onclick="borrar(${g.id})">🗑️</button>
+      const items = gastosDelMes.map(g => `
+          <div class="expense-item">
+              <div class="expense-icon">${ICONOS[g.categoria] || "📦"}</div>
+              <div class="expense-body">
+                  <div class="expense-desc">${g.descripcion}</div>
+                  <div class="expense-meta">
+                      <span class="expense-cat">${g.categoria}</span>
+                      <span class="expense-date">${g.fecha}</span>
                   </div>
               </div>
-          `).join("");
-
-          return cabecera + items;
-      }).join("");
-}
-
-      // map transforma cada gasto en un string de HTML.
-      // join("") une todos esos strings en uno solo.
-      lista.innerHTML = gastos.map(g => `
-        <div class="expense-item">
-          <div class="expense-icon">${ICONOS[g.categoria] || "📦"}</div>
-          <div class="expense-body">
-            <div class="expense-desc">${g.descripcion}</div>
-            <div class="expense-meta">
-              <span class="expense-cat">${g.categoria}</span>
-              <span class="expense-date">${g.fecha}</span>
-            </div>
+              <div class="expense-amount">${fmt(g.importe)}</div>
+              <div class="expense-actions">
+                  <button class="icon-btn" onclick="abrirEditar(${g.id})">✏️</button>
+                  <button class="icon-btn del" onclick="borrar(${g.id})">🗑️</button>
+              </div>
           </div>
-          <div class="expense-amount">${fmt(g.importe)}</div>
-          <div class="expense-actions">
-            <!--
-              onclick llama a una función al pulsar el botón.
-              Pasamos el id del gasto para saber cuál editar o borrar.
-            -->
-            <button class="icon-btn" onclick="abrirEditar(${g.id})">✏️</button>
-            <button class="icon-btn del" onclick="borrar(${g.id})">🗑️</button>
-          </div>
-        </div>
       `).join("");
-    
+
+      // Cada grupo tiene un id único basado en el mes
+      // para que el toggle sepa qué elemento colapsar
+      return `
+          <div class="mes-grupo" id="grupo-${mes}">
+              <div class="mes-header" onclick="toggleMes('${mes}')">
+                  <span class="mes-nombre">${fmt_mes(mes)}</span>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                      <span class="mes-total">${fmt(totalMes)}</span>
+                      <span class="mes-toggle">▼</span>
+                  </div>
+              </div>
+              <div class="mes-items">
+                  ${items}
+              </div>
+          </div>
+      `;
+  }).join("");
+    }
+
     // ── Renderizar las estadísticas del header ────────────────────────
     function renderStats() {
       const total = gastos.reduce((sum, g) => sum + g.importe, 0);
@@ -925,6 +938,11 @@
       overlay.classList.remove("open");
     }
 
+    function toggleMes(mes) {
+    const grupo = document.getElementById(`grupo-${mes}`);
+    // classList.toggle añade la clase si no está, la quita si está
+    grupo.classList.toggle("colapsado");
+}
     // ── Guardar (crear o editar) ──────────────────────────────────────
     async function guardar() {
       const datos = {
