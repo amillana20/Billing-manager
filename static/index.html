@@ -1239,7 +1239,7 @@
 
 // Registra el service worker si el navegador lo soporta
     if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/static/sw.js")
+        navigator.serviceWorker.register("/static/sw.js", { scope: "/" })
             .then(() => console.log("Service Worker registrado"))
             .catch(err => console.log("Error SW:", err));
     }

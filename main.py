@@ -134,7 +134,16 @@ def guardar_presupuesto(mes: str, datos: schemas.PresupuestoIn):
 @app.get("/static/manifest.json")
 def manifest():
     return FileResponse("static/manifest.json")
-       
+
+@app.get("/static/sw.js")
+def service_worker():
+    return FileResponse(
+        "static/sw.js",
+        media_type="application/javascript",
+        headers={
+            "Service-Worker-Allowed": "/"
+        }
+    )
 # ── IA ─────────────────────────────────────────────────────────────────────────
 
 @app.post("/ia/categorizar", response_model=schemas.CategorizarResponse)
