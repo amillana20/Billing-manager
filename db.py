@@ -19,7 +19,6 @@ def _get_conn() -> sqlite3.Connection:
     return conn
 
 def crear_tablas() -> None:
-    # Crear las tablas si no existen
     with _get_conn() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS gastos (
@@ -30,6 +29,38 @@ def crear_tablas() -> None:
                 fecha       TEXT    NOT NULL
             )
         """)
+        # Nueva tabla para presupuestos
+        # Cada fila es un mes con su presupuesto
+        # mes es la clave primaria porque solo hay un presupuesto por mes
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS presupuestos (
+                mes         TEXT PRIMARY KEY,
+                importe     REAL NOT NULL CHECK(importe > 0)
+            )
+        """)
+
+
+def obtener_presupuesto(mes: str) -> float | None:
+    """Devuelve el presupuesto de un mes, o None si no está definido."""
+    with _get_conn() as conn:
+        fila = conn.execute(
+            "SELECT importe FROM presupuestos WHERE mes = ?", (mes,)
+        ).fetchone()
+        return fila["importe"] if fila else None
+
+
+def guardar_presupuesto(mes: str, importe: float) -> None:
+    """
+    Guarda o actualiza el presupuesto de un mes.
+    INSERT OR REPLACE sustituye la fila si ya existe para ese mes,
+    o la crea si no existe. Así no necesitamos distinguir entre
+    crear y editar.
+    """
+    with _get_conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO presupuestos (mes, importe) VALUES (?, ?)",
+            (mes, importe)
+        )
 
 
 def añadir_gasto(descripcion: str, importe: float, categoria: str, fecha: date | None = None) -> int:

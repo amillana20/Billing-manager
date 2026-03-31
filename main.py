@@ -88,6 +88,49 @@ def eliminar_gasto(id: int):
         raise HTTPException(status_code=404, detail="Gasto no encontrado")
 
 
+# ── Presupuestos ───────────────────────────────────────────────────────────────
+
+@app.get("/presupuestos/{mes}", response_model=schemas.PresupuestoOut)
+def obtener_presupuesto(mes: str):
+    """
+    Devuelve el presupuesto de un mes junto con lo gastado y lo restante.
+    mes tiene el formato "2026-03".
+    """
+    importe = db.obtener_presupuesto(mes)
+    if importe is None:
+        raise HTTPException(status_code=404, detail="Presupuesto no definido")
+
+    # Calculamos lo gastado sumando todos los gastos del mes
+    gastos_mes = db.obtener_gastos(mes=mes)
+    gastado = sum(g["importe"] for g in gastos_mes)
+
+    return schemas.PresupuestoOut(
+        mes=mes,
+        importe=importe,
+        gastado=round(gastado, 2),
+        restante=round(importe - gastado, 2)
+    )
+
+
+@app.put("/presupuestos/{mes}", response_model=schemas.PresupuestoOut)
+def guardar_presupuesto(mes: str, datos: schemas.PresupuestoIn):
+    """
+    Crea o actualiza el presupuesto de un mes.
+    Usamos PUT porque es una operación idempotente:
+    llamarla varias veces con el mismo valor produce el mismo resultado.
+    """
+    db.guardar_presupuesto(mes, datos.importe)
+
+    gastos_mes = db.obtener_gastos(mes=mes)
+    gastado = sum(g["importe"] for g in gastos_mes)
+
+    return schemas.PresupuestoOut(
+        mes=mes,
+        importe=datos.importe,
+        gastado=round(gastado, 2),
+        restante=round(importe - gastado, 2)
+    )
+    
 # ── IA ─────────────────────────────────────────────────────────────────────────
 
 @app.post("/ia/categorizar", response_model=schemas.CategorizarResponse)

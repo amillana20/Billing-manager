@@ -576,6 +576,68 @@
         max-height: 0;
     }
 
+    /* Barra de presupuesto dentro de cada cabecera de mes */
+    .mes-budget {
+        padding: 10px 0 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .mes-budget-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted);
+    }
+
+    .mes-budget-row span:last-child {
+        font-family: var(--font-mono);
+        font-size: 12px;
+    }
+
+    /* El importe restante cambia de color según si hay saldo o no */
+    .restante-positivo { color: var(--accent); }
+    .restante-negativo { color: var(--danger); }
+
+    /* Barra de progreso del presupuesto */
+    .budget-track {
+        width: 100%;
+        background: var(--bg);
+        border-radius: 4px;
+        height: 4px;
+        overflow: hidden;
+    }
+
+    .budget-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.4s ease;
+    }
+
+    /* Verde si está por debajo del presupuesto, rojo si lo supera */
+    .budget-fill.ok       { background: var(--accent); }
+    .budget-fill.excedido { background: var(--danger); }
+
+    /* Botón para editar el presupuesto dentro de la cabecera */
+    .btn-presupuesto {
+        background: none;
+        border: 1px dashed var(--border);
+        border-radius: 6px;
+        color: var(--muted);
+        cursor: pointer;
+        font-family: var(--font-main);
+        font-size: 11px;
+        padding: 4px 10px;
+        transition: border-color 0.15s, color 0.15s;
+    }
+
+    .btn-presupuesto:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+
   </style>
 </head>
 
@@ -732,12 +794,17 @@
     // fuera síncrono, esperando el resultado antes de continuar.
 
     async function cargarGastos() {
-      const res  = await fetch(`${API}/gastos`);
-      gastos = await res.json();   // .json() convierte la respuesta a objeto JS
-      renderLista();
-      renderStats();
-      renderGraficos();
-    }
+        const res = await fetch(`${API}/gastos`);
+        gastos = await res.json();
+
+        // Calculamos qué meses hay y cargamos sus presupuestos en paralelo
+        const meses = [...new Set(gastos.map(g => g.fecha.slice(0, 7)))];
+        await Promise.all(meses.map(cargarPresupuesto));
+
+        renderLista();
+        renderStats();
+        renderGraficos();
+}
 
     async function crearGasto(datos) {
       await fetch(`${API}/gastos`, {
@@ -832,19 +899,20 @@
       // Cada grupo tiene un id único basado en el mes
       // para que el toggle sepa qué elemento colapsar
       return `
-          <div class="mes-grupo" id="grupo-${mes}">
-              <div class="mes-header" onclick="toggleMes('${mes}')">
-                  <span class="mes-nombre">${fmt_mes(mes)}</span>
-                  <div style="display:flex; align-items:center; gap:10px;">
-                      <span class="mes-total">${fmt(totalMes)}</span>
-                      <span class="mes-toggle">▼</span>
-                  </div>
-              </div>
-              <div class="mes-items">
-                  ${items}
-              </div>
-          </div>
-      `;
+        <div class="mes-grupo" id="grupo-${mes}">
+            <div class="mes-header" onclick="toggleMes('${mes}')">
+                <span class="mes-nombre">${fmt_mes(mes)}</span>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span class="mes-total">${fmt(totalMes)}</span>
+                    <span class="mes-toggle">▼</span>
+                </div>
+            </div>
+            ${renderBudget(mes, totalMes)}
+            <div class="mes-items">
+                ${items}
+            </div>
+        </div>
+    `;
   }).join("");
     }
 
@@ -975,6 +1043,87 @@
       await cargarGastos();
     }
 
+    // Guarda los presupuestos en memoria para no pedir la API en cada render
+    const presupuestos = {};
+
+    async function cargarPresupuesto(mes) {
+        try {
+            const res = await fetch(`${API}/presupuestos/${mes}`);
+            if (res.ok) {
+                presupuestos[mes] = await res.json();
+            } else {
+                // Si no tiene presupuesto definido, guardamos null
+                presupuestos[mes] = null;
+            }
+        } catch {
+            presupuestos[mes] = null;
+        }
+    }
+
+    async function definirPresupuesto(mes, nombre) {
+        // prompt muestra un diálogo nativo del navegador para pedir un valor
+        const valor = prompt(`Presupuesto para ${nombre} (€):`);
+        if (!valor) return;
+
+        const importe = parseFloat(valor);
+        if (isNaN(importe) || importe <= 0) {
+            alert("Introduce un importe válido mayor que 0.");
+            return;
+        }
+
+        await fetch(`${API}/presupuestos/${mes}`, {
+            method:  "PUT",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ importe }),
+        });
+
+        // Recargamos el presupuesto del mes y volvemos a renderizar
+        await cargarPresupuesto(mes);
+        renderLista();
+    }
+
+    function renderBudget(mes, gastado) {
+        const p = presupuestos[mes];
+
+        // Si no hay presupuesto definido, mostramos el botón para definirlo
+        if (!p) {
+            return `
+                <div class="mes-budget">
+                    <button class="btn-presupuesto"
+                        onclick="definirPresupuesto('${mes}', '${fmt_mes(mes)}')">
+                        + Definir presupuesto
+                    </button>
+                </div>
+            `;
+        }
+
+        const pct      = Math.min((gastado / p.importe) * 100, 100);
+        const excedido = gastado > p.importe;
+        const restante = p.importe - gastado;
+
+        return `
+            <div class="mes-budget">
+                <div class="mes-budget-row">
+                    <span>Presupuesto</span>
+                    <span>${fmt(p.importe)}</span>
+                </div>
+                <div class="mes-budget-row">
+                    <span>Restante</span>
+                    <span class="${excedido ? "restante-negativo" : "restante-positivo"}">
+                        ${excedido ? "-" : ""}${fmt(Math.abs(restante))}
+                    </span>
+                </div>
+                <div class="budget-track">
+                    <div class="budget-fill ${excedido ? "excedido" : "ok"}"
+                        style="width: ${pct}%"></div>
+                </div>
+                <button class="btn-presupuesto"
+                    onclick="definirPresupuesto('${mes}', '${fmt_mes(mes)}')">
+                    ✎ Editar presupuesto
+                </button>
+            </div>
+        `;
+    }
     // ── Botón de IA ───────────────────────────────────────────────────
     aiBtn.addEventListener("click", async () => {
       const desc = fDesc.value.trim();

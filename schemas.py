@@ -38,3 +38,15 @@ class CategorizarRequest(BaseModel):
 
 class CategorizarResponse(BaseModel):
     categoria: str
+
+class PresupuestoIn(BaseModel):
+    """Lo que recibe la API al guardar un presupuesto."""
+    importe: float = Field(gt=0)
+
+
+class PresupuestoOut(BaseModel):
+    """Lo que devuelve la API con el presupuesto y el saldo restante."""
+    mes:       str
+    importe:   float  # presupuesto total del mes
+    gastado:   float  # suma de todos los gastos del mes
+    restante:  float  # importe - gastado
