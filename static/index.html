@@ -521,6 +521,29 @@
       .overlay { align-items: center; }
       .modal   { border-radius: 20px; }
     }
+
+    .mes-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 0 8px;
+        margin-bottom: 4px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .mes-nombre {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .mes-total {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        color: var(--accent);
+    }
   </style>
 </head>
 
@@ -719,13 +742,74 @@
     // insertarlo en el DOM (la estructura de la página).
     function renderLista() {
       if (gastos.length === 0) {
-        lista.innerHTML = `
-          <div class="empty">
-            <div class="empty-icon">🧾</div>
-            Sin gastos todavía. Pulsa + para añadir el primero.
-          </div>`;
-        return;
+          lista.innerHTML = `
+              <div class="empty">
+                  <div class="empty-icon">🧾</div>
+                  Sin gastos todavía. Pulsa + para añadir el primero.
+              </div>`;
+          return;
       }
+
+      // 1. Agrupamos los gastos por mes
+      // Creamos un objeto donde cada clave es un mes ("2026-03")
+      // y su valor es un array con los gastos de ese mes
+      const grupos = {};
+      gastos.forEach(g => {
+          const mes = g.fecha.slice(0, 7); // "2026-03-21" → "2026-03"
+          if (!grupos[mes]) grupos[mes] = [];
+          grupos[mes].push(g);
+      });
+
+      // 2. Ordenamos los meses de más reciente a más antiguo
+      const meses = Object.keys(grupos).sort().reverse();
+
+      // 3. Formateamos el mes para mostrarlo como "Marzo 2026"
+      const fmt_mes = mes => {
+          const [anyo, num] = mes.split("-");
+          const nombres = [
+              "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+          ];
+          return `${nombres[parseInt(num) - 1]} ${anyo}`;
+      };
+
+      // 4. Generamos el HTML de cada grupo
+      lista.innerHTML = meses.map(mes => {
+          const gastosDelMes = grupos[mes];
+
+          // Total del mes sumando todos los importes
+          const totalMes = gastosDelMes.reduce((sum, g) => sum + g.importe, 0);
+
+          // HTML de la cabecera del mes
+          const cabecera = `
+              <div class="mes-header">
+                  <span class="mes-nombre">${fmt_mes(mes)}</span>
+                  <span class="mes-total">${fmt(totalMes)}</span>
+              </div>
+          `;
+
+          // HTML de los gastos del mes
+          const items = gastosDelMes.map(g => `
+              <div class="expense-item">
+                  <div class="expense-icon">${ICONOS[g.categoria] || "📦"}</div>
+                  <div class="expense-body">
+                      <div class="expense-desc">${g.descripcion}</div>
+                      <div class="expense-meta">
+                          <span class="expense-cat">${g.categoria}</span>
+                          <span class="expense-date">${g.fecha}</span>
+                      </div>
+                  </div>
+                  <div class="expense-amount">${fmt(g.importe)}</div>
+                  <div class="expense-actions">
+                      <button class="icon-btn" onclick="abrirEditar(${g.id})">✏️</button>
+                      <button class="icon-btn del" onclick="borrar(${g.id})">🗑️</button>
+                  </div>
+              </div>
+          `).join("");
+
+          return cabecera + items;
+      }).join("");
+}
 
       // map transforma cada gasto en un string de HTML.
       // join("") une todos esos strings en uno solo.
