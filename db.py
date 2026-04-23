@@ -1,117 +1,89 @@
-import sqlite3
-import pathlib
-from datetime import date
 import os
+import psycopg2
+import psycopg2.extras
+from datetime import date
 
-# Ruta de la base de datos
-# Si existe el directorio /data, se usa la base de datos en ese directorio (Railway)
-# Si no existe, se usa la base de datos en el directorio del usuario
-if os.path.exists("/data"):
-    DB_PATH = pathlib.Path("/data") / "gastos_ia.db"
-else:
-    DB_PATH = pathlib.Path.home() / ".gastos_ia.db"
+# En local usa SQLite, en producción usa PostgreSQL
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-def _get_conn() -> sqlite3.Connection:
-    # Conectar a la base de datos
-    conn = sqlite3.connect(DB_PATH)
-    # Devolver los resultados como diccionarios en vez de tuplas
-    conn.row_factory = sqlite3.Row
+
+def _get_conn():
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
+
 
 def crear_tablas() -> None:
     with _get_conn() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS gastos (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                descripcion TEXT    NOT NULL,
-                importe     REAL    NOT NULL CHECK(importe > 0),
-                categoria   TEXT    NOT NULL,
-                fecha       TEXT    NOT NULL
-            )
-        """)
-        # Nueva tabla para presupuestos
-        # Cada fila es un mes con su presupuesto
-        # mes es la clave primaria porque solo hay un presupuesto por mes
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS presupuestos (
-                mes         TEXT PRIMARY KEY,
-                importe     REAL NOT NULL CHECK(importe > 0)
-            )
-        """)
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS gastos (
+                    id          SERIAL PRIMARY KEY,
+                    descripcion TEXT   NOT NULL,
+                    importe     REAL   NOT NULL CHECK(importe > 0),
+                    categoria   TEXT   NOT NULL,
+                    fecha       TEXT   NOT NULL
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS presupuestos (
+                    mes     TEXT PRIMARY KEY,
+                    importe REAL NOT NULL CHECK(importe > 0)
+                )
+            """)
+        conn.commit()
 
 
-def obtener_presupuesto(mes: str) -> float | None:
-    """Devuelve el presupuesto de un mes, o None si no está definido."""
-    with _get_conn() as conn:
-        fila = conn.execute(
-            "SELECT importe FROM presupuestos WHERE mes = ?", (mes,)
-        ).fetchone()
-        return fila["importe"] if fila else None
-
-
-def guardar_presupuesto(mes: str, importe: float) -> None:
-    """
-    Guarda o actualiza el presupuesto de un mes.
-    INSERT OR REPLACE sustituye la fila si ya existe para ese mes,
-    o la crea si no existe. Así no necesitamos distinguir entre
-    crear y editar.
-    """
-    with _get_conn() as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO presupuestos (mes, importe) VALUES (?, ?)",
-            (mes, importe)
-        )
-
-
-def añadir_gasto(descripcion: str, importe: float, categoria: str, fecha: date | None = None) -> int:
-    # Añadir un gasto a la base de datos
-
-    # Convertir la fecha a string en formato ISO 8601. Si no hay datos, es el día actual.
+def añadir_gasto(
+    descripcion: str,
+    importe: float,
+    categoria: str,
+    fecha: date | None = None,
+) -> int:
     fecha_str = (fecha or date.today()).isoformat()
-
-    # Conectar a la base de datos
     with _get_conn() as conn:
-        # Ejecutar la consulta para añadir el gasto
-        cursor = conn.execute(
-            """
-            INSERT INTO gastos (descripcion, importe, categoria, fecha)
-            VALUES (?, ?, ?, ?)
-            """,
-            (descripcion, importe, categoria, fecha_str),
-        )
-        # Devolver el id del gasto añadido
-        return cursor.lastrowid
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO gastos (descripcion, importe, categoria, fecha)
+                VALUES (%s, %s, %s, %s) RETURNING id
+                """,
+                (descripcion, importe, categoria, fecha_str),
+            )
+            id = cur.fetchone()[0]
+        conn.commit()
+        return id
+
 
 def obtener_gastos(
     categoria: str | None = None,
     mes: str | None = None,
-) -> list[sqlite3.Row]:
-    # Obtener los gastos de la base de datos
-    # Se puede filtrar por categoría y mes
-    # Se ordenan por fecha y id
-
+) -> list[dict]:
     query = "SELECT * FROM gastos WHERE 1=1"
-    params: list = []
+    params = []
 
     if categoria:
-        query += " AND categoria = ?"
+        query += " AND categoria = %s"
         params.append(categoria)
 
     if mes:
-        query += " AND strftime('%Y-%m', fecha) = ?"
+        query += " AND SUBSTRING(fecha, 1, 7) = %s"
         params.append(mes)
 
     query += " ORDER BY fecha DESC, id DESC"
 
     with _get_conn() as conn:
-        return conn.execute(query, params).fetchall()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(query, params)
+            return [dict(r) for r in cur.fetchall()]
 
-def obtener_gasto(id: int) -> sqlite3.Row | None:
-    # Obtener un gasto por su id
+
+def obtener_gasto(id: int) -> dict | None:
     with _get_conn() as conn:
-        return conn.execute(
-            "SELECT * FROM gastos WHERE id = ?", [id]
-        ).fetchone()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM gastos WHERE id = %s", (id,))
+            fila = cur.fetchone()
+            return dict(fila) if fila else None
+
 
 def editar_gasto(
     id: int,
@@ -120,71 +92,68 @@ def editar_gasto(
     categoria: str,
     fecha: date,
 ) -> bool:
-    # Editar un gasto por su id
     with _get_conn() as conn:
-        cursor = conn.execute(
-            """
-            UPDATE gastos
-            SET descripcion = ?,
-                importe     = ?,
-                categoria   = ?,
-                fecha       = ?
-            WHERE id = ?
-            """,
-            (descripcion, importe, categoria, fecha.isoformat(), id),
-        )
-        return cursor.rowcount > 0
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE gastos
+                SET descripcion = %s,
+                    importe     = %s,
+                    categoria   = %s,
+                    fecha       = %s
+                WHERE id = %s
+                """,
+                (descripcion, importe, categoria, fecha.isoformat(), id),
+            )
+            affected = cur.rowcount
+        conn.commit()
+        return affected > 0
+
 
 def eliminar_gasto(id: int) -> bool:
-    # Eliminar un gasto por su id
     with _get_conn() as conn:
-        cursor = conn.execute(
-            "DELETE FROM gastos WHERE id = ?", [id]
-        )
-        return cursor.rowcount > 0
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM gastos WHERE id = %s", (id,))
+            affected = cur.rowcount
+        conn.commit()
+        return affected > 0
+
 
 def totales_por_categoria(mes: str | None = None) -> list[dict]:
-    # Obtener los totales de los gastos por categoría
-    # Se puede filtrar por mes
-    # Se ordenan por total de mayor a menor
-
     query = "SELECT categoria, SUM(importe) as total FROM gastos"
-    params: list = []
+    params = []
 
     if mes:
-        query += " WHERE strftime('%Y-%m', fecha) = ?"
+        query += " WHERE SUBSTRING(fecha, 1, 7) = %s"
         params.append(mes)
 
     query += " GROUP BY categoria ORDER BY total DESC"
 
     with _get_conn() as conn:
-        rows = conn.execute(query, params).fetchall()
-        return [{"categoria": r["categoria"], "total": r["total"]} for r in rows]
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(query, params)
+            return [dict(r) for r in cur.fetchall()]
 
 
-# Comprobación del funcionamiento de la base de datos
+def obtener_presupuesto(mes: str) -> float | None:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT importe FROM presupuestos WHERE mes = %s", (mes,)
+            )
+            fila = cur.fetchone()
+            return fila[0] if fila else None
 
 
-# if __name__ == "__main__":
-#     crear_tablas()
-
-#     id1 = añadir_gasto("Mercadona", 67.50, "Alimentación")
-#     id2 = añadir_gasto("Netflix", 17.99, "Ocio")
-#     id3 = añadir_gasto("Renfe Madrid-Valencia", 42.00, "Transporte")
-
-#     print("Todos los gastos:")
-#     for g in obtener_gastos():
-#         print(f"  {g['id']} | {g['descripcion']} | {g['importe']}€ | {g['categoria']}")
-
-#     print("\nSolo Ocio:")
-#     for g in obtener_gastos(categoria="Ocio"):
-#         print(f"  {g['descripcion']} | {g['importe']}€")
-
-#     from datetime import date
-#     editar_gasto(id1, "Mercadona (editado)", 70.00, "Alimentación", date.today())
-#     print(f"\nGasto editado: {dict(obtener_gasto(id1))}")
-
-#     print("\nTotales por categoría:", totales_por_categoria())
-
-#     eliminar_gasto(id3)
-#     print(f"\nGastos tras eliminar: {len(obtener_gastos())}")
+def guardar_presupuesto(mes: str, importe: float) -> None:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO presupuestos (mes, importe)
+                VALUES (%s, %s)
+                ON CONFLICT (mes) DO UPDATE SET importe = EXCLUDED.importe
+                """,
+                (mes, importe)
+            )
+        conn.commit()
