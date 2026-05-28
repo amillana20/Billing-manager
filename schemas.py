@@ -47,6 +47,41 @@ class PresupuestoIn(BaseModel):
 class PresupuestoOut(BaseModel):
     """Lo que devuelve la API con el presupuesto y el saldo restante."""
     mes:       str
-    importe:   float  # presupuesto total del mes
-    gastado:   float  # suma de todos los gastos del mes
-    restante:  float  # importe - gastado
+    importe:   float
+    gastado:   float
+    restante:  float
+
+
+class GastoFijoBase(BaseModel):
+    descripcion: str   = Field(min_length=1, max_length=200)
+    importe:     float = Field(gt=0)
+    categoria:   str   = Field(min_length=1, max_length=50)
+
+    @field_validator("descripcion", "categoria")
+    @classmethod
+    def no_solo_espacios(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("No puede estar vacío o contener solo espacios")
+        return v.strip()
+
+
+class GastoFijoCreate(GastoFijoBase):
+    pass
+
+
+class GastoFijoUpdate(GastoFijoBase):
+    pass
+
+
+class GastoFijoOut(GastoFijoBase):
+    id: int
+    model_config = {"from_attributes": True}
+
+
+class EmpezarMesRequest(BaseModel):
+    mes: str  # formato "2026-05"
+
+
+class EmpezarMesResponse(BaseModel):
+    mes:      str
+    insertados: int

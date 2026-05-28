@@ -671,6 +671,69 @@
     }
 
     .mes-select:focus { border-color: var(--accent); }
+
+    /* ── Gastos fijos ─────────────────────────────────────────────── */
+    .fijos-header {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .fijos-desc {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.5;
+    }
+
+    .btn-empezar-mes {
+        background: var(--accent);
+        border: none;
+        border-radius: 9px;
+        color: #0d0d0d;
+        cursor: pointer;
+        font-family: var(--font-main);
+        font-size: 14px;
+        font-weight: 600;
+        padding: 12px;
+        transition: opacity 0.15s;
+        width: 100%;
+    }
+
+    .btn-empezar-mes:hover { opacity: 0.85; }
+
+    .btn-add-fijo {
+        width: 100%;
+        margin-top: 12px;
+        background: none;
+        border: 1px dashed var(--border);
+        border-radius: 9px;
+        color: var(--muted);
+        cursor: pointer;
+        font-family: var(--font-main);
+        font-size: 13px;
+        padding: 12px;
+        transition: border-color 0.15s, color 0.15s;
+    }
+
+    .btn-add-fijo:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+
+    /* Modal de gasto fijo */
+    .overlay-fijo {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.7);
+        z-index: 100;
+        align-items: flex-end;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+    }
+    .overlay-fijo.open { display: flex; }
+
   </style>
 </head>
 
@@ -692,6 +755,7 @@
     -->
     <button class="tab active" data-tab="lista">Lista</button>
     <button class="tab"        data-tab="graficos">Gráficos</button>
+    <button class="tab"        data-tab="fijos">Fijos</button>
   </nav>
 
   <!-- ── Contenido ───────────────────────────────────────────────── -->
@@ -709,16 +773,21 @@
         <div class="chart-card">
             <div class="chart-controls">
                 <div class="chart-title">Gasto por categoría</div>
-                <!--
-                    onchange llama a renderGraficos() cada vez que
-                    el usuario selecciona un mes diferente.
-                    Las opciones se generan desde JavaScript.
-                -->
                 <select class="mes-select" id="mes-select" onchange="renderGraficos()">
                 </select>
             </div>
             <div id="chart-bars"></div>
         </div>
+    </section>
+
+    <!-- Vista Gastos Fijos -->
+    <section class="view" id="view-fijos">
+      <div class="fijos-header">
+        <p class="fijos-desc">Gastos que se repiten cada mes. Pulsa "Empezar mes" para añadirlos automáticamente.</p>
+        <button class="btn-empezar-mes" id="btn-empezar-mes">&#9654; Empezar mes</button>
+      </div>
+      <div class="expense-list" id="fijos-list"></div>
+      <button class="btn-add-fijo" id="btn-add-fijo">+ Añadir gasto fijo</button>
     </section>
 
   </main>
@@ -758,6 +827,29 @@
       <div class="form-actions">
         <button class="btn-secondary" id="btn-cancelar">Cancelar</button>
         <button class="btn-primary"   id="btn-guardar">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal gasto fijo ───────────────────────────────────────── -->
+  <div class="overlay-fijo" id="overlay-fijo">
+    <div class="modal">
+      <div class="modal-title" id="modal-fijo-title">Nuevo gasto fijo</div>
+      <div class="form-group">
+        <label class="form-label">Descripción</label>
+        <input class="form-input" id="ff-desc" type="text" placeholder="Ej: Spotify, Seguro, Hipoteca…">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Importe (€)</label>
+        <input class="form-input" id="ff-importe" type="number" min="0.01" step="0.01" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Categoría</label>
+        <select class="form-select" id="ff-categoria"></select>
+      </div>
+      <div class="form-actions">
+        <button class="btn-secondary" id="btn-cancelar-fijo">Cancelar</button>
+        <button class="btn-primary"   id="btn-guardar-fijo">Guardar</button>
       </div>
     </div>
   </div>
@@ -1233,9 +1325,145 @@
       if (e.target === overlay) cerrarModal();
     });
 
+    // ── Gastos fijos ──────────────────────────────────────────────────
+    let gastosFijos = [];
+    let editandoFijoId = null;
+
+    const overlayFijo  = document.getElementById("overlay-fijo");
+    const ffDesc       = document.getElementById("ff-desc");
+    const ffImporte    = document.getElementById("ff-importe");
+    const ffCategoria  = document.getElementById("ff-categoria");
+
+    // Rellena el select de categorías del modal de fijos
+    CATEGORIAS.forEach(cat => {
+        ffCategoria.innerHTML += `<option value="${cat}">${cat}</option>`;
+    });
+
+    async function cargarGastosFijos() {
+        const res = await fetch(`${API}/gastos-fijos`);
+        gastosFijos = await res.json();
+        renderFijos();
+    }
+
+    function renderFijos() {
+        const lista = document.getElementById("fijos-list");
+        if (gastosFijos.length === 0) {
+            lista.innerHTML = `
+                <div class="empty">
+                    <div class="empty-icon">📋</div>
+                    Sin gastos fijos. Pulsa "Añadir gasto fijo" para empezar.
+                </div>`;
+            return;
+        }
+        lista.innerHTML = gastosFijos.map(g => `
+            <div class="expense-item">
+                <div class="expense-icon">${ICONOS[g.categoria] || "📦"}</div>
+                <div class="expense-body">
+                    <div class="expense-desc">${g.descripcion}</div>
+                    <div class="expense-meta">
+                        <span class="expense-cat">${g.categoria}</span>
+                    </div>
+                </div>
+                <div class="expense-amount">${fmt(g.importe)}</div>
+                <div class="expense-actions">
+                    <button class="icon-btn" onclick="abrirEditarFijo(${g.id})">✏️</button>
+                    <button class="icon-btn del" onclick="borrarFijo(${g.id})">🗑️</button>
+                </div>
+            </div>
+        `).join("");
+    }
+
+    function abrirNuevoFijo() {
+        editandoFijoId = null;
+        document.getElementById("modal-fijo-title").textContent = "Nuevo gasto fijo";
+        ffDesc.value = "";
+        ffImporte.value = "";
+        ffCategoria.value = "Gastos Fijos";
+        overlayFijo.classList.add("open");
+        ffDesc.focus();
+    }
+
+    function abrirEditarFijo(id) {
+        const g = gastosFijos.find(g => g.id === id);
+        if (!g) return;
+        editandoFijoId = id;
+        document.getElementById("modal-fijo-title").textContent = "Editar gasto fijo";
+        ffDesc.value      = g.descripcion;
+        ffImporte.value   = g.importe;
+        ffCategoria.value = g.categoria;
+        overlayFijo.classList.add("open");
+    }
+
+    function cerrarModalFijo() {
+        overlayFijo.classList.remove("open");
+    }
+
+    async function guardarFijo() {
+        const datos = {
+            descripcion: ffDesc.value.trim(),
+            importe:     parseFloat(ffImporte.value),
+            categoria:   ffCategoria.value,
+        };
+        if (!datos.descripcion || isNaN(datos.importe) || datos.importe <= 0) {
+            alert("Rellena todos los campos correctamente.");
+            return;
+        }
+        if (editandoFijoId) {
+            await fetch(`${API}/gastos-fijos/${editandoFijoId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(datos),
+            });
+        } else {
+            await fetch(`${API}/gastos-fijos`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(datos),
+            });
+        }
+        cerrarModalFijo();
+        await cargarGastosFijos();
+    }
+
+    async function borrarFijo(id) {
+        if (!confirm("¿Eliminar este gasto fijo?")) return;
+        await fetch(`${API}/gastos-fijos/${id}`, { method: "DELETE" });
+        await cargarGastosFijos();
+    }
+
+    async function empezarMes() {
+        // Calculamos el mes siguiente al actual
+        const ahora  = new Date();
+        const anyo   = ahora.getMonth() === 11 ? ahora.getFullYear() + 1 : ahora.getFullYear();
+        const mes    = ahora.getMonth() === 11 ? 1 : ahora.getMonth() + 2;
+        const mesFmt = `${anyo}-${String(mes).padStart(2, "0")}`;
+
+        const confirmado = confirm(`¿Añadir ${gastosFijos.length} gastos fijos al mes ${fmt_mes(mesFmt)}?`);
+        if (!confirmado) return;
+
+        const res  = await fetch(`${API}/empezar-mes`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ mes: mesFmt }),
+        });
+        const data = await res.json();
+        alert(`Se han añadido ${data.insertados} gastos a ${fmt_mes(mesFmt)}.`);
+        await cargarGastos();
+    }
+
+    document.getElementById("btn-add-fijo").addEventListener("click", abrirNuevoFijo);
+    document.getElementById("btn-cancelar-fijo").addEventListener("click", cerrarModalFijo);
+    document.getElementById("btn-guardar-fijo").addEventListener("click", guardarFijo);
+    document.getElementById("btn-empezar-mes").addEventListener("click", empezarMes);
+
+    overlayFijo.addEventListener("click", e => {
+        if (e.target === overlayFijo) cerrarModalFijo();
+    });
+
     // ── Arranque ──────────────────────────────────────────────────────
     // Cargamos los gastos al abrir la página por primera vez.
     cargarGastos();
+    cargarGastosFijos();
 
 // Registra el service worker si el navegador lo soporta
     if ("serviceWorker" in navigator) {

@@ -30,6 +30,14 @@ def crear_tablas() -> None:
                     importe REAL NOT NULL CHECK(importe > 0)
                 )
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS gastos_fijos (
+                    id          SERIAL PRIMARY KEY,
+                    descripcion TEXT   NOT NULL,
+                    importe     REAL   NOT NULL CHECK(importe > 0),
+                    categoria   TEXT   NOT NULL
+                )
+            """)
         conn.commit()
 
 
@@ -157,3 +165,84 @@ def guardar_presupuesto(mes: str, importe: float) -> None:
                 (mes, importe)
             )
         conn.commit()
+
+
+# ── Gastos fijos ───────────────────────────────────────────────────────────────
+
+def obtener_gastos_fijos() -> list[dict]:
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM gastos_fijos ORDER BY id")
+            return [dict(r) for r in cur.fetchall()]
+
+
+def obtener_gasto_fijo(id: int) -> dict | None:
+    with _get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM gastos_fijos WHERE id = %s", (id,))
+            fila = cur.fetchone()
+            return dict(fila) if fila else None
+
+
+def añadir_gasto_fijo(
+    descripcion: str,
+    importe: float,
+    categoria: str,
+) -> int:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO gastos_fijos (descripcion, importe, categoria)
+                VALUES (%s, %s, %s) RETURNING id
+                """,
+                (descripcion, importe, categoria),
+            )
+            id = cur.fetchone()[0]
+        conn.commit()
+        return id
+
+
+def editar_gasto_fijo(
+    id: int,
+    descripcion: str,
+    importe: float,
+    categoria: str,
+) -> bool:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE gastos_fijos
+                SET descripcion = %s,
+                    importe     = %s,
+                    categoria   = %s
+                WHERE id = %s
+                """,
+                (descripcion, importe, categoria, id),
+            )
+            affected = cur.rowcount
+        conn.commit()
+        return affected > 0
+
+
+def eliminar_gasto_fijo(id: int) -> bool:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM gastos_fijos WHERE id = %s", (id,))
+            affected = cur.rowcount
+        conn.commit()
+        return affected > 0
+
+
+def empezar_mes(mes: str) -> int:
+    """
+    Inserta todos los gastos fijos como gastos reales del mes indicado.
+    La fecha de cada gasto es el día 1 del mes.
+    Devuelve el número de gastos insertados.
+    """
+    fijos = obtener_gastos_fijos()
+    fecha = date.fromisoformat(f"{mes}-01")
+    for g in fijos:
+        añadir_gasto(g["descripcion"], g["importe"], g["categoria"], fecha)
+    return len(fijos)

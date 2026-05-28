@@ -150,6 +150,41 @@ def guardar_presupuesto(mes: str, datos: schemas.PresupuestoIn):
     )
 
 
+# ── Gastos fijos ───────────────────────────────────────────────────────────────
+
+@app.get("/gastos-fijos", response_model=list[schemas.GastoFijoOut])
+def obtener_gastos_fijos():
+    return [schemas.GastoFijoOut.model_validate(f) for f in db.obtener_gastos_fijos()]
+
+
+@app.post("/gastos-fijos", response_model=schemas.GastoFijoOut, status_code=201)
+def crear_gasto_fijo(gasto: schemas.GastoFijoCreate):
+    id = db.añadir_gasto_fijo(gasto.descripcion, gasto.importe, gasto.categoria)
+    return schemas.GastoFijoOut.model_validate(db.obtener_gasto_fijo(id))
+
+
+@app.put("/gastos-fijos/{id}", response_model=schemas.GastoFijoOut)
+def editar_gasto_fijo(id: int, gasto: schemas.GastoFijoUpdate):
+    existe = db.obtener_gasto_fijo(id)
+    if not existe:
+        raise HTTPException(status_code=404, detail="Gasto fijo no encontrado")
+    db.editar_gasto_fijo(id, gasto.descripcion, gasto.importe, gasto.categoria)
+    return schemas.GastoFijoOut.model_validate(db.obtener_gasto_fijo(id))
+
+
+@app.delete("/gastos-fijos/{id}", status_code=204)
+def eliminar_gasto_fijo(id: int):
+    eliminado = db.eliminar_gasto_fijo(id)
+    if not eliminado:
+        raise HTTPException(status_code=404, detail="Gasto fijo no encontrado")
+
+
+@app.post("/empezar-mes", response_model=schemas.EmpezarMesResponse)
+def empezar_mes(datos: schemas.EmpezarMesRequest):
+    insertados = db.empezar_mes(datos.mes)
+    return schemas.EmpezarMesResponse(mes=datos.mes, insertados=insertados)
+
+
 # ── IA ─────────────────────────────────────────────────────────────────────────
 
 @app.post("/ia/categorizar", response_model=schemas.CategorizarResponse)
