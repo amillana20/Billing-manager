@@ -140,7 +140,7 @@ def obtener_presupuesto(mes: str):
         mes=mes,
         importe=importe,
         gastado=round(gastado, 2),
-        restante=round(importe - gastado, 2)
+        restante=round(datos.importe - gastado, 2)
     )
 
 
@@ -160,7 +160,7 @@ def guardar_presupuesto(mes: str, datos: schemas.PresupuestoIn):
         mes=mes,
         importe=datos.importe,
         gastado=round(gastado, 2),
-        restante=round(importe - gastado, 2)
+        restante=round(datos.importe - gastado, 2)
     )
 
 
@@ -195,8 +195,8 @@ def eliminar_gasto_fijo(id: int):
 
 @app.post("/empezar-mes", response_model=schemas.EmpezarMesResponse)
 def empezar_mes(datos: schemas.EmpezarMesRequest):
-    insertados = db.empezar_mes(datos.mes)
-    return schemas.EmpezarMesResponse(mes=datos.mes, insertados=insertados)
+    insertados, omitidos = db.empezar_mes(datos.mes)
+    return schemas.EmpezarMesResponse(mes=datos.mes, insertados=insertados, omitidos=omitidos)
 
 
 # ── IA ─────────────────────────────────────────────────────────────────────────

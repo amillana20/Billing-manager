@@ -235,17 +235,42 @@ def eliminar_gasto_fijo(id: int) -> bool:
         return affected > 0
 
 
-def empezar_mes(mes: str) -> int:
+def empezar_mes(mes: str) -> tuple[int, int]:
     """
-    Inserta todos los gastos fijos como gastos reales del mes indicado.
+    Inserta los gastos fijos como gastos reales del mes indicado.
     La fecha de cada gasto es el día 1 del mes.
-    Devuelve el número de gastos insertados.
+
+    Es idempotente: si un gasto fijo ya está en ese mes (misma descripción,
+    importe y categoría con fecha día 1), no se vuelve a insertar. Así,
+    pulsar "Empezar mes" dos veces no duplica nada, y si se añade un gasto
+    fijo nuevo a mitad de mes, al volver a pulsar solo se inserta ese.
+
+    Devuelve (insertados, omitidos).
     """
     fijos = obtener_gastos_fijos()
-    fecha = date.fromisoformat(f"{mes}-01")
-    for g in fijos:
-        añadir_gasto(g["descripcion"], g["importe"], g["categoria"], fecha)
-    return len(fijos)
+    fecha_str = date.fromisoformat(f"{mes}-01").isoformat()
+    insertados = 0
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            for g in fijos:
+                cur.execute(
+                    """
+                    INSERT INTO gastos (descripcion, importe, categoria, fecha)
+                    SELECT %s, %s, %s, %s
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM gastos
+                        WHERE descripcion = %s
+                          AND importe     = %s::real
+                          AND categoria   = %s
+                          AND fecha       = %s
+                    )
+                    """,
+                    (g["descripcion"], g["importe"], g["categoria"], fecha_str,
+                     g["descripcion"], g["importe"], g["categoria"], fecha_str),
+                )
+                insertados += cur.rowcount
+        conn.commit()
+    return insertados, len(fijos) - insertados
 
 def comprobar_conexion() -> None:
     """Consulta mínima para comprobar que la base de datos responde.

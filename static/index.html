@@ -1446,8 +1446,16 @@
             headers: { "Content-Type": "application/json" },
             body:    JSON.stringify({ mes: mesFmt }),
         });
+        if (!res.ok) {
+            alert("No se ha podido empezar el mes. Inténtalo de nuevo.");
+            return;
+        }
         const data = await res.json();
-        alert(`Se han añadido ${data.insertados} gastos a ${fmt_mes(mesFmt)}.`);
+        let msg = `Se han añadido ${data.insertados} gastos a ${fmt_mes(mesFmt)}.`;
+        if (data.omitidos > 0) {
+            msg += `\n${data.omitidos} ya estaban añadidos y no se han duplicado.`;
+        }
+        alert(msg);
         await cargarGastos();
     }
 

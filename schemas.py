@@ -79,9 +79,10 @@ class GastoFijoOut(GastoFijoBase):
 
 
 class EmpezarMesRequest(BaseModel):
-    mes: str  # formato "2026-05"
+    mes: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")  # formato "2026-05"
 
 
 class EmpezarMesResponse(BaseModel):
-    mes:      str
+    mes:        str
     insertados: int
+    omitidos:   int = 0  # gastos fijos que ya estaban en ese mes
