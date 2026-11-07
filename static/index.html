@@ -92,6 +92,28 @@
       letter-spacing: -0.5px;
     }
 
+    .user-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .btn-salir {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--font-main);
+      font-size: 12px;
+      padding: 5px 10px;
+    }
+
+    .btn-salir:hover { border-color: var(--danger); color: var(--danger); }
+
     /* El punto verde del logo */
     .logo span {
       color: var(--accent);
@@ -742,7 +764,12 @@
   <!-- ── Header ──────────────────────────────────────────────────── -->
   <header>
     <div class="header-top">
-        <div class="logo">EXPENSES MANAGER <span>(by amillana)</span></div>    </div>
+        <div class="logo">EXPENSES MANAGER <span>(by amillana)</span></div>
+        <div class="user-box">
+            <span id="usuario-actual"></span>
+            <button class="btn-salir" id="btn-salir">Salir</button>
+        </div>
+    </div>
     <!-- Las stats se rellenan desde JavaScript -->
     <div class="stats" id="stats"></div>
   </header>
@@ -862,6 +889,30 @@
     // la página" — así funciona tanto en local como en producción
     // sin cambiar nada.
     const API = "";
+
+    // ── Sesión ────────────────────────────────────────────────────────
+    // Si la sesión ha caducado, cualquier llamada a la API devuelve 401:
+    // en ese caso mandamos al usuario a la pantalla de login.
+    const fetchOriginal = window.fetch.bind(window);
+    window.fetch = async (...args) => {
+      const res = await fetchOriginal(...args);
+      if (res.status === 401) {
+        location.href = "/login";
+        throw new Error("Sesión caducada");
+      }
+      return res;
+    };
+
+    // ── Escapar HTML ──────────────────────────────────────────────────
+    // Todo texto que viene de la base de datos pasa por esc() antes de
+    // meterlo con innerHTML. Así un gasto llamado "<img onerror=...>"
+    // se ve como texto y no se ejecuta.
+    const esc = valor => String(valor)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
 
     const CATEGORIAS = [
       "Supermercado", "Transporte", "Ocio", "Salud",
@@ -1012,10 +1063,10 @@
           <div class="expense-item">
               <div class="expense-icon">${ICONOS[g.categoria] || "📦"}</div>
               <div class="expense-body">
-                  <div class="expense-desc">${g.descripcion}</div>
+                  <div class="expense-desc">${esc(g.descripcion)}</div>
                   <div class="expense-meta">
-                      <span class="expense-cat">${g.categoria}</span>
-                      <span class="expense-date">${g.fecha}</span>
+                      <span class="expense-cat">${esc(g.categoria)}</span>
+                      <span class="expense-date">${esc(g.fecha)}</span>
                   </div>
               </div>
               <div class="expense-amount">${fmt(g.importe)}</div>
@@ -1124,7 +1175,7 @@
             const pct = (total / maximo * 100).toFixed(1);
             return `
                 <div class="bar-row">
-                    <div class="bar-label">${ICONOS[cat] || "📦"} ${cat}</div>
+                    <div class="bar-label">${ICONOS[cat] || "📦"} ${esc(cat)}</div>
                     <div class="bar-track">
                         <div class="bar-fill" style="width: ${pct}%"></div>
                     </div>
@@ -1359,9 +1410,9 @@
             <div class="expense-item">
                 <div class="expense-icon">${ICONOS[g.categoria] || "📦"}</div>
                 <div class="expense-body">
-                    <div class="expense-desc">${g.descripcion}</div>
+                    <div class="expense-desc">${esc(g.descripcion)}</div>
                     <div class="expense-meta">
-                        <span class="expense-cat">${g.categoria}</span>
+                        <span class="expense-cat">${esc(g.categoria)}</span>
                     </div>
                 </div>
                 <div class="expense-amount">${fmt(g.importe)}</div>
@@ -1472,6 +1523,23 @@
     // Cargamos los gastos al abrir la página por primera vez.
     cargarGastos();
     cargarGastosFijos();
+
+    fetch(`${API}/yo`)
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("usuario-actual").textContent = data.usuario;
+      })
+      .catch(() => {});
+
+    document.getElementById("btn-salir").addEventListener("click", async () => {
+      await fetch(`${API}/logout`, { method: "POST" });
+      // Borramos la caché del service worker para no dejar datos en el móvil
+      if ("caches" in window) {
+        const claves = await caches.keys();
+        await Promise.all(claves.map(k => caches.delete(k)));
+      }
+      location.href = "/login";
+    });
 
 // Registra el service worker si el navegador lo soporta
     if ("serviceWorker" in navigator) {

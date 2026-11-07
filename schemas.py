@@ -86,3 +86,7 @@ class EmpezarMesResponse(BaseModel):
     mes:        str
     insertados: int
     omitidos:   int = 0  # gastos fijos que ya estaban en ese mes
+
+class LoginRequest(BaseModel):
+    usuario:  str = Field(min_length=1, max_length=32)
+    password: str = Field(min_length=1, max_length=200)
