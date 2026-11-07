@@ -1152,6 +1152,14 @@
       return gastos.some(g => g.fecha.startsWith(mesSiguiente)) ? mesSiguiente : mesHoy;
     }
 
+    // Día del mes activo hasta el que se compara con el mes anterior
+    // ("hasta el mismo día"). Si el mes activo todavía no ha llegado en el
+    // calendario (se ha empezado antes de tiempo), solo lleva su día 1:
+    // ahí van los gastos fijos y, por defecto, los gastos nuevos.
+    function diaReferencia() {
+      return hoy.startsWith(mesActivo()) ? hoy.slice(8, 10) : "01";
+    }
+
     // Último día de un mes "2026-02" → "2026-02-28"
     function ultimoDia(mes) {
       const [anyo, num] = mes.split("-").map(Number);
@@ -1317,8 +1325,9 @@
     function renderStats() {
       const total = sumar(gastos);
 
-      // Mes actual y anterior en formato "2026-03"
-      const mesActual   = hoy.slice(0, 7);
+      // Mes actual (el activo, que puede ir por delante del calendario)
+      // y anterior en formato "2026-03"
+      const mesActual   = mesActivo();
       const mesAnt      = sumarMeses(mesActual, -1);
       const mesAntAnt   = sumarMeses(mesActual, -2);
       const totalMes    = sumar(gastosDelMes(mesActual));
@@ -1327,7 +1336,7 @@
 
       // Para que la comparación sea justa a mitad de mes, "Este mes" se
       // compara con lo gastado el mes anterior hasta el mismo día.
-      const diaHoy = hoy.slice(8, 10);
+      const diaHoy = diaReferencia();
       const totalAntMismoDia = sumar(
         gastosDelMes(mesAnt).filter(g => g.fecha.slice(8, 10) <= diaHoy)
       );
@@ -1411,7 +1420,7 @@
         });
 
         // Los últimos n meses, terminando en el actual (aunque alguno esté vacío)
-        const mesActual = hoy.slice(0, 7);
+        const mesActual = mesActivo();
         const rango   = Array.from({ length: n }, (_, i) => sumarMeses(mesActual, i - n + 1));
         const totales = rango.map(m => porMes[m] || 0);
 
@@ -1495,8 +1504,8 @@
 
         // Si es el mes en curso, se compara con el mes anterior hasta el
         // mismo día (si no, el mes actual siempre parecería más barato).
-        const enCurso = mes === hoy.slice(0, 7);
-        const diaHoy  = hoy.slice(8, 10);
+        const enCurso = mes === mesActivo();
+        const diaHoy  = diaReferencia();
         const gastosAnt = gastosDelMes(mesAnt)
             .filter(g => !enCurso || g.fecha.slice(8, 10) <= diaHoy);
         document.getElementById("leyenda-anterior").textContent = enCurso
