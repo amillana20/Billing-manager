@@ -33,3 +33,22 @@ Supermercado, Transporte, Ocio, Salud, Gastos Fijos, Ropa, Suministros, Otros
     uvicorn main:app --reload
 ```
 4. Abre el navegador en `http://localhost:8000`
+## Acceso (login)
+
+La app pide usuario y contraseña. Hay dos usuarios que comparten los mismos gastos.
+Se configuran con dos variables de entorno (en Render: *Environment*):
+
+| Variable     | Valor |
+|--------------|-------|
+| `SECRET_KEY` | Clave aleatoria larga (mínimo 32 caracteres) para firmar la sesión |
+| `USUARIOS`   | `nombre1:hash1,nombre2:hash2` |
+
+Para generar el hash de cada contraseña (y una `SECRET_KEY`):
+
+```bash
+python auth.py
+```
+
+- Cambiar la contraseña de un usuario cierra sus sesiones abiertas.
+- Cambiar `SECRET_KEY` cierra las sesiones de los dos.
+- `/health` sigue siendo público para el keep-alive.
