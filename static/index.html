@@ -1110,6 +1110,11 @@
     let gastos = [];
     let editandoId = null;
 
+    // Meses que el usuario ha abierto o cerrado a mano. Así, al recargar
+    // la lista tras guardar un gasto, cada mes se queda como estaba.
+    // Los meses que no están aquí se muestran colapsados salvo el activo.
+    const mesesTocados = new Map(); // mes → true (abierto) / false (cerrado)
+
     // ── Referencias al DOM ────────────────────────────────────────────
     // document.getElementById busca un elemento HTML por su id.
     // Los guardamos en variables para no buscarlo cada vez.
@@ -1129,9 +1134,37 @@
       fCategoria.innerHTML += `<option value="${cat}">${cat}</option>`;
     });
 
-    // Fecha de hoy en formato YYYY-MM-DD para el campo de fecha
-    const hoy = new Date().toISOString().split("T")[0];
+    // Fecha de hoy en formato YYYY-MM-DD (hora local, no UTC: si no,
+    // entre medianoche y las 2:00 en España saldría el día anterior)
+    const ahoraLocal = new Date();
+    const hoy = `${ahoraLocal.getFullYear()}-${String(ahoraLocal.getMonth() + 1).padStart(2, "0")}-${String(ahoraLocal.getDate()).padStart(2, "0")}`;
     fFecha.value = hoy;
+
+    // ── Mes activo ────────────────────────────────────────────────────
+    // Normalmente es el mes de hoy. Pero si ya se ha pulsado "Empezar mes"
+    // (por ejemplo al cobrar a finales de mes), el mes siguiente ya tiene
+    // gastos y pasa a ser el mes activo aunque el calendario no haya
+    // cambiado todavía. Solo se mira hasta el mes siguiente para que un
+    // gasto con una fecha mal puesta muy en el futuro no lo descoloque.
+    function mesActivo() {
+      const mesHoy = hoy.slice(0, 7);
+      const mesSiguiente = sumarMeses(mesHoy, 1);
+      return gastos.some(g => g.fecha.startsWith(mesSiguiente)) ? mesSiguiente : mesHoy;
+    }
+
+    // Día del mes activo hasta el que se compara con el mes anterior
+    // ("hasta el mismo día"). Si el mes activo todavía no ha llegado en el
+    // calendario (se ha empezado antes de tiempo), solo lleva su día 1:
+    // ahí van los gastos fijos y, por defecto, los gastos nuevos.
+    function diaReferencia() {
+      return hoy.startsWith(mesActivo()) ? hoy.slice(8, 10) : "01";
+    }
+
+    // Último día de un mes "2026-02" → "2026-02-28"
+    function ultimoDia(mes) {
+      const [anyo, num] = mes.split("-").map(Number);
+      return `${mes}-${String(new Date(anyo, num, 0).getDate()).padStart(2, "0")}`;
+    }
 
     // ── Formatear moneda ──────────────────────────────────────────────
     // Intl.NumberFormat es la API nativa del navegador para formatear
@@ -1213,10 +1246,14 @@
       // 2. Ordenamos los meses de más reciente a más antiguo
       const meses = Object.keys(grupos).sort().reverse();
 
-      // 3. Generamos el HTML de cada grupo
+      // 3. Generamos el HTML de cada grupo.
+      // Solo el mes activo sale abierto; el resto, colapsado (salvo que
+      // el usuario lo haya abierto o cerrado a mano).
+      const activo = mesActivo();
 
       lista.innerHTML = meses.map(mes => {
       const gastosDelMes = grupos[mes];
+      const abierto = mesesTocados.has(mes) ? mesesTocados.get(mes) : mes === activo;
       const totalMes = gastosDelMes.reduce((sum, g) => sum + g.importe, 0);
 
       const items = gastosDelMes.map(g => `
@@ -1240,7 +1277,7 @@
       // Cada grupo tiene un id único basado en el mes
       // para que el toggle sepa qué elemento colapsar
       return `
-        <div class="mes-grupo" id="grupo-${mes}">
+        <div class="mes-grupo${abierto ? "" : " colapsado"}" id="grupo-${mes}">
             <div class="mes-header" onclick="toggleMes('${mes}')">
                 <span class="mes-nombre">${fmt_mes(mes)}</span>
                 <div style="display:flex; align-items:center; gap:10px;">
@@ -1288,8 +1325,9 @@
     function renderStats() {
       const total = sumar(gastos);
 
-      // Mes actual y anterior en formato "2026-03"
-      const mesActual   = hoy.slice(0, 7);
+      // Mes actual (el activo, que puede ir por delante del calendario)
+      // y anterior en formato "2026-03"
+      const mesActual   = mesActivo();
       const mesAnt      = sumarMeses(mesActual, -1);
       const mesAntAnt   = sumarMeses(mesActual, -2);
       const totalMes    = sumar(gastosDelMes(mesActual));
@@ -1298,7 +1336,7 @@
 
       // Para que la comparación sea justa a mitad de mes, "Este mes" se
       // compara con lo gastado el mes anterior hasta el mismo día.
-      const diaHoy = hoy.slice(8, 10);
+      const diaHoy = diaReferencia();
       const totalAntMismoDia = sumar(
         gastosDelMes(mesAnt).filter(g => g.fecha.slice(8, 10) <= diaHoy)
       );
@@ -1382,7 +1420,7 @@
         });
 
         // Los últimos n meses, terminando en el actual (aunque alguno esté vacío)
-        const mesActual = hoy.slice(0, 7);
+        const mesActual = mesActivo();
         const rango   = Array.from({ length: n }, (_, i) => sumarMeses(mesActual, i - n + 1));
         const totales = rango.map(m => porMes[m] || 0);
 
@@ -1466,8 +1504,8 @@
 
         // Si es el mes en curso, se compara con el mes anterior hasta el
         // mismo día (si no, el mes actual siempre parecería más barato).
-        const enCurso = mes === hoy.slice(0, 7);
-        const diaHoy  = hoy.slice(8, 10);
+        const enCurso = mes === mesActivo();
+        const diaHoy  = diaReferencia();
         const gastosAnt = gastosDelMes(mesAnt)
             .filter(g => !enCurso || g.fecha.slice(8, 10) <= diaHoy);
         document.getElementById("leyenda-anterior").textContent = enCurso
@@ -1575,7 +1613,12 @@
       modalTitle.textContent = "Nuevo gasto";
       fDesc.value   = "";
       fImporte.value = "";
-      fFecha.value  = hoy;
+      // Un gasto nuevo va siempre al mes activo. Si el mes activo es el
+      // siguiente (ya se ha empezado), la fecha por defecto es su día 1.
+      const activo = mesActivo();
+      fFecha.min    = `${activo}-01`;
+      fFecha.max    = ultimoDia(activo);
+      fFecha.value  = hoy.startsWith(activo) ? hoy : `${activo}-01`;
       fCategoria.value = "Supermercado";
       overlay.classList.add("open");  // añadir la clase .open lo hace visible
       fDesc.focus();
@@ -1586,6 +1629,9 @@
       if (!g) return;
       editandoId = id;
       modalTitle.textContent = "Editar gasto";
+      // Al editar se puede poner cualquier fecha
+      fFecha.removeAttribute("min");
+      fFecha.removeAttribute("max");
       fDesc.value      = g.descripcion;
       fImporte.value   = g.importe;
       fFecha.value     = g.fecha;
@@ -1601,6 +1647,7 @@
     const grupo = document.getElementById(`grupo-${mes}`);
     // classList.toggle añade la clase si no está, la quita si está
     grupo.classList.toggle("colapsado");
+    mesesTocados.set(mes, !grupo.classList.contains("colapsado"));
 }
     // ── Guardar (crear o editar) ──────────────────────────────────────
     async function guardar() {
@@ -1615,6 +1662,15 @@
       if (!datos.descripcion || isNaN(datos.importe) || datos.importe <= 0) {
         alert("Rellena todos los campos correctamente.");
         return;
+      }
+
+      // Los gastos nuevos tienen que ser del mes activo
+      if (!editandoId) {
+        const activo = mesActivo();
+        if (!datos.fecha.startsWith(activo)) {
+          alert(`La fecha tiene que ser de ${fmt_mes(activo)}.`);
+          return;
+        }
       }
 
       if (editandoId) {
