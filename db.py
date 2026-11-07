@@ -246,3 +246,14 @@ def empezar_mes(mes: str) -> int:
     for g in fijos:
         añadir_gasto(g["descripcion"], g["importe"], g["categoria"], fecha)
     return len(fijos)
+
+def comprobar_conexion() -> None:
+    """Consulta mínima para comprobar que la base de datos responde.
+    La usa el endpoint /health (y mantiene activa la BD de Supabase)."""
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            cur.fetchone()
+    finally:
+        conn.close()

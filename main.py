@@ -61,6 +61,20 @@ def raiz():
     )
 
 
+# ── Health check ───────────────────────────────────────────────────────────────
+
+# Endpoint ligero que visita GitHub Actions cada 10 minutos para que Render
+# no duerma la app. También hace una consulta mínima a la base de datos para
+# que Supabase no la pause por inactividad.
+@app.get("/health")
+def health():
+    try:
+        db.comprobar_conexion()
+    except Exception:
+        raise HTTPException(status_code=503, detail="Base de datos no disponible")
+    return {"status": "ok"}
+
+
 # ── Gastos ─────────────────────────────────────────────────────────────────────
 
 # Se obtiene la lista de gastos
