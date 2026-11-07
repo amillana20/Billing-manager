@@ -1,18 +1,17 @@
-# Gastos IA
+# Gestión de gastos
 
-App personal para gestionar gastos con categorización automática mediante IA.
+App personal para gestionar gastos compartidos.
 
 ## Tecnologías
 
 - **Backend**: Python + FastAPI
-- **Base de datos**: SQLite
-- **IA**: Claude (Anthropic)
+- **Base de datos**: PostgreSQL (Supabase)
 - **Frontend**: HTML + CSS + JavaScript
 
 ## Funcionalidades
 
 - Añadir, editar y eliminar gastos
-- Categorización automática con IA
+- Gastos fijos y presupuesto mensual
 - Gráfico de gastos por categoría
 - Accesible desde móvil y escritorio
 
@@ -27,12 +26,13 @@ Supermercado, Transporte, Ocio, Salud, Gastos Fijos, Ropa, Suministros, Otros
 ```bash
     pip install -r requirements.txt
 ```
-3. Arranca el servidor
+3. Define las variables de entorno `DATABASE_URL`, `SECRET_KEY` y `USUARIOS` (ver «Acceso» más abajo)
+4. Arranca el servidor
 ```bash
-    set ANTHROPIC_API_KEY=sk-ant-...
     uvicorn main:app --reload
 ```
-4. Abre el navegador en `http://localhost:8000`
+5. Abre el navegador en `http://localhost:8000`
+
 ## Acceso (login)
 
 La app pide usuario y contraseña. Hay dos usuarios que comparten los mismos gastos.

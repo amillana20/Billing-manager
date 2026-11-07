@@ -1,5 +1,4 @@
 fastapi
 uvicorn
 pydantic
-groq
 psycopg2-binary

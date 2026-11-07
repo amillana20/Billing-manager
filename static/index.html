@@ -438,49 +438,6 @@
       gap: 12px;
     }
 
-    /* ── Botón de IA ──────────────────────────────────────────────────
-       Aparece debajo del campo descripción.
-    ──────────────────────────────────────────────────────────────── */
-    .ai-btn {
-      margin-top: 6px;
-      background: none;
-      border: 1px dashed var(--border);
-      border-radius: 7px;
-      color: var(--muted);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-family: var(--font-main);
-      font-size: 12px;
-      padding: 7px 12px;
-      transition: border-color 0.15s, color 0.15s;
-    }
-
-    .ai-btn:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    .ai-btn:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-
-    /* Punto parpadeante que indica carga */
-    .dot {
-      width: 6px;
-      height: 6px;
-      background: var(--accent);
-      border-radius: 50%;
-      animation: blink 1s infinite;
-    }
-
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.2; }
-    }
-
     /* ── Botones de acción del formulario ────────────────────────────*/
     .form-actions {
       display: flex;
@@ -830,7 +787,6 @@
       <div class="form-group">
         <label class="form-label">Descripción</label>
         <input class="form-input" id="f-desc" type="text" placeholder="Ej: Mercadona, Spotify…">
-        <button class="ai-btn" id="ai-btn">✦ Categorizar con IA</button>
       </div>
 
       <div class="form-row">
@@ -950,7 +906,6 @@
     const fImporte    = document.getElementById("f-importe");
     const fFecha      = document.getElementById("f-fecha");
     const fCategoria  = document.getElementById("f-categoria");
-    const aiBtn       = document.getElementById("ai-btn");
 
     // ── Inicializar el select de categorías ───────────────────────────
     // Generamos las opciones del desplegable desde el array CATEGORIAS.
@@ -1015,16 +970,6 @@
 
     async function eliminarGasto(id) {
       await fetch(`${API}/gastos/${id}`, { method: "DELETE" });
-    }
-
-    async function categorizarIA(descripcion) {
-      const res  = await fetch(`${API}/ia/categorizar`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ descripcion }),
-      });
-      const data = await res.json();
-      return data.categoria;
     }
 
     // ── Renderizar la lista ───────────────────────────────────────────
@@ -1331,22 +1276,6 @@
             </div>
         `;
     }
-    // ── Botón de IA ───────────────────────────────────────────────────
-    aiBtn.addEventListener("click", async () => {
-      const desc = fDesc.value.trim();
-      if (!desc) return;
-
-      // Cambiamos el botón a estado de carga mientras espera la respuesta
-      aiBtn.disabled   = true;
-      aiBtn.innerHTML  = `<div class="dot"></div> Categorizando…`;
-
-      const cat = await categorizarIA(desc);
-      fCategoria.value = cat;
-
-      aiBtn.disabled  = false;
-      aiBtn.innerHTML = "✦ Categorizar con IA";
-    });
-
     // ── Navegación entre pestañas ─────────────────────────────────────
     // querySelectorAll devuelve todos los elementos que coinciden
     // con el selector CSS ".tab".

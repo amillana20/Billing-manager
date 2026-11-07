@@ -1,4 +1,3 @@
-import os
 from contextlib import asynccontextmanager
 from datetime import date
 
@@ -9,21 +8,12 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from groq import Groq
 
 import auth
 import db
 import schemas
 
 logger = logging.getLogger("uvicorn.error")
-
-CATEGORIAS = [
-    "Supermercado", "Transporte", "Ocio", "Salud",
-    "Gastos Fijos", "Ropa", "Suministros", "Otros"
-]
-
-# Se crea el cliente de Groq
-groq_client = None
 
 # Se define que debe hacer el servidor cuando se inicia y se detiene
 @asynccontextmanager
@@ -299,25 +289,3 @@ def empezar_mes(datos: schemas.EmpezarMesRequest):
     insertados, omitidos = db.empezar_mes(datos.mes)
     return schemas.EmpezarMesResponse(mes=datos.mes, insertados=insertados, omitidos=omitidos)
 
-
-# ── IA ─────────────────────────────────────────────────────────────────────────
-
-@app.post("/ia/categorizar", response_model=schemas.CategorizarResponse)
-def categorizar(request: schemas.CategorizarRequest):
-    client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-    mensaje = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        max_tokens=20,
-        messages=[{
-            "role": "user",
-            "content": (
-                f'Gasto: "{request.descripcion}". '
-                f'Categorías posibles: {", ".join(CATEGORIAS)}. '
-                f'Responde SOLO con el nombre exacto de una categoría.'
-            )
-        }]
-    )
-    categoria = mensaje.choices[0].message.content.strip()
-    if categoria not in CATEGORIAS:
-        categoria = "Otros"
-    return schemas.CategorizarResponse(categoria=categoria)

@@ -32,13 +32,6 @@ class GastoOut(GastoBase):
     model_config = {"from_attributes": True}
 
 
-class CategorizarRequest(BaseModel):
-    descripcion: str = Field(min_length=1, max_length=200)
-
-
-class CategorizarResponse(BaseModel):
-    categoria: str
-
 class PresupuestoIn(BaseModel):
     """Lo que recibe la API al guardar un presupuesto."""
     importe: float = Field(gt=0)
