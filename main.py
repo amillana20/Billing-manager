@@ -3,6 +3,8 @@ from datetime import date
 
 import asyncio
 import logging
+import os
+import urllib.request
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
@@ -15,6 +17,29 @@ import schemas
 
 logger = logging.getLogger("uvicorn.error")
 
+# ── Auto-ping para que Render no duerma la app ─────────────────────────────────
+# El plan gratuito de Render apaga la app tras 15 minutos sin visitas. Mientras
+# está encendida, la propia app visita su URL pública cada 10 minutos, así que
+# nunca llega a apagarse. Render define RENDER_EXTERNAL_URL automáticamente;
+# en local no existe y el auto-ping no se activa.
+URL_PUBLICA = os.environ.get("RENDER_EXTERNAL_URL")
+INTERVALO_PING = 10 * 60  # segundos
+
+
+def _ping() -> None:
+    with urllib.request.urlopen(f"{URL_PUBLICA}/health", timeout=60) as r:
+        r.read()
+
+
+async def _auto_ping() -> None:
+    while True:
+        await asyncio.sleep(INTERVALO_PING)
+        try:
+            await asyncio.to_thread(_ping)
+        except Exception as e:
+            logger.warning("Auto-ping a %s/health falló: %s", URL_PUBLICA, e)
+
+
 # Se define que debe hacer el servidor cuando se inicia y se detiene
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,7 +49,11 @@ async def lifespan(app: FastAPI):
             "Faltan SECRET_KEY (mín. 32 caracteres) o USUARIOS: "
             "nadie podrá iniciar sesión. Ejecuta 'python auth.py'."
         )
+
+    tarea_ping = asyncio.create_task(_auto_ping()) if URL_PUBLICA else None
     yield
+    if tarea_ping:
+        tarea_ping.cancel()
 
 
 app = FastAPI(lifespan=lifespan)
