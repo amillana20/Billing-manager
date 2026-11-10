@@ -38,6 +38,11 @@ def crear_tablas() -> None:
                     categoria   TEXT   NOT NULL
                 )
             """)
+            # Activa Row-Level Security para que la API pública de Supabase
+            # (clave anon) no pueda leer ni modificar las tablas. El backend
+            # se conecta como propietario de las tablas y no se ve afectado.
+            for tabla in ("gastos", "presupuestos", "gastos_fijos"):
+                cur.execute(f"ALTER TABLE {tabla} ENABLE ROW LEVEL SECURITY")
         conn.commit()
 
 
